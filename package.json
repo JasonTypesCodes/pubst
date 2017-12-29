@@ -6,7 +6,7 @@
   "scripts": {
     "build": "babel src -d lib",
     "lint": "eslint ./src",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha ./src/*.test.js"
   },
   "repository": {
     "type": "git",
@@ -32,6 +32,11 @@
   "devDependencies": {
     "babel-cli": "6.26.0",
     "babel-preset-env": "1.6.1",
-    "eslint": "4.14.0"
+    "chai": "4.1.2",
+    "clear-require": "2.0.0",
+    "eslint": "4.14.0",
+    "mocha": "4.1.0",
+    "sinon": "4.1.3",
+    "sinon-chai": "2.14.0"
   }
 }

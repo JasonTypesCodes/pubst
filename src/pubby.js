@@ -68,7 +68,7 @@ function subscribe(topic, callback, def) {
 }
 
 function currentVal(topic, def) {
-  if(isNotSet(store[topic])){
+  if(isNotSet(store[topic]) && typeof def !== 'undefined'){
     return def;
   }
 
