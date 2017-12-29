@@ -4,6 +4,8 @@
   "description": "Basic JavaScript Pub/Sub Event Emitter",
   "main": "lib/pubby.js",
   "scripts": {
+    "build": "babel src -d lib",
+    "lint": "eslint ./src",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -26,5 +28,10 @@
   "bugs": {
     "url": "https://github.com/VoltiSubito/pubby/issues"
   },
-  "homepage": "https://github.com/VoltiSubito/pubby#readme"
+  "homepage": "https://github.com/VoltiSubito/pubby#readme",
+  "devDependencies": {
+    "babel-cli": "6.26.0",
+    "babel-preset-env": "1.6.1",
+    "eslint": "4.14.0"
+  }
 }
