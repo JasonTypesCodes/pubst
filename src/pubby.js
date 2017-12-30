@@ -32,7 +32,7 @@ function allSubsFor(topic) {
 }
 
 function scheduleCall(callback, payload, topic) {
-  setTimeout(callback.bind(null, payload, topic), 0);
+  setTimeout(callback, 0, payload, topic);
 }
 
 function publish(topic, payload) {
