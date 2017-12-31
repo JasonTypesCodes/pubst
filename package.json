@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/VoltiSubito/pubby.git"
+    "url": "git+https://github.com/VoltiSubito/pubst.git"
   },
   "keywords": [
     "publish",
@@ -26,9 +26,9 @@
   "author": "Jason Schindler",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/VoltiSubito/pubby/issues"
+    "url": "https://github.com/VoltiSubito/pubst/issues"
   },
-  "homepage": "https://github.com/VoltiSubito/pubby#readme",
+  "homepage": "https://github.com/VoltiSubito/pubst#readme",
   "devDependencies": {
     "babel-cli": "6.26.0",
     "babel-preset-env": "1.6.1",
