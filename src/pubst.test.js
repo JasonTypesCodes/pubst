@@ -213,6 +213,27 @@ describe('pubst', () => {
       expect(handler1).not.to.have.been.called;
       expect(handler2).not.to.have.been.called;
     });
+
+    it('sends null if no default was provided and a null was published', () => {
+      const originalPayload = 'the original payload';
+      const handler = sinon.spy();
+
+      pubst.publish(TEST_TOPIC_1, originalPayload);
+      clock.tick(1);
+
+      expect(pubst.currentVal(TEST_TOPIC_1)).to.equal(originalPayload);
+
+      pubst.subscribe(TEST_TOPIC_1, handler);
+      clock.tick(1);
+
+      expect(handler).to.have.been.calledWith(originalPayload, TEST_TOPIC_1);
+      handler.reset();
+
+      pubst.publish(TEST_TOPIC_1, null);
+      clock.tick(1);
+
+      expect(handler).to.have.been.calledWith(null, TEST_TOPIC_1);
+    });
   });
 
 });

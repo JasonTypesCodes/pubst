@@ -1,5 +1,5 @@
 /*
- * Pubst - Basic JavaScript Pub/Sub Event Emitter
+ *  Pubby - Basic JavaScript Pub/Sub Event Emitter
  *
  *  Copyright 2017 Jason Schindler
  *
@@ -48,11 +48,7 @@ function publish(topic, payload) {
 
 function subscribe(topic, callback, def) {
   const mySub = (payload, topic) => {
-    if (isNotSet(payload)) {
-      callback(def, topic);
-    } else {
-      callback(payload, topic);
-    }
+    callback(currentVal(topic, def), topic);
   };
 
   subscribers[topic] = allSubsFor(topic).concat(mySub);
