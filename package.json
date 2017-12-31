@@ -1,8 +1,8 @@
 {
-  "name": "pubby",
-  "version": "0.0.1",
+  "name": "pubst",
+  "version": "0.0.2",
   "description": "Basic JavaScript Pub/Sub Event Emitter",
-  "main": "lib/pubby.js",
+  "main": "lib/pubst.js",
   "scripts": {
     "build": "babel src -d lib",
     "lint": "eslint ./src",

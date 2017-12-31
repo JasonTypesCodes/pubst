@@ -1,5 +1,5 @@
 /*
- * Pubby - Basic JavaScript Pub/Sub Event Emitter
+ * Pubst - Basic JavaScript Pub/Sub Event Emitter
  *
  *  Copyright 2017 Jason Schindler
  *
