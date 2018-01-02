@@ -234,6 +234,26 @@ describe('pubst', () => {
 
       expect(handler).to.have.been.calledWith(null, TEST_TOPIC_1);
     });
+
+    it('maintains the payload for each scheduled call when changed before the call is made', () => {
+      const payloads = [1, 2, 3, 4, 5];
+
+      const handler = sinon.spy();
+
+      pubst.subscribe(TEST_TOPIC_1, handler);
+
+      payloads.forEach(payload => {
+        pubst.publish(TEST_TOPIC_1, payload);
+      });
+
+      clock.tick(1);
+
+      expect(handler).to.have.callCount(payloads.length);
+      payloads.forEach(payload => {
+        expect(handler).to.have.been.calledWith(payload, TEST_TOPIC_1);
+      });
+
+    });
   });
 
 });

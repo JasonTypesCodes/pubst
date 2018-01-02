@@ -27,6 +27,14 @@ function isSet(item) {
   return !isNotSet(item);
 }
 
+function valueOrDefault(value, def) {
+  if(isNotSet(value) && typeof def !== 'undefined'){
+    return def;
+  }
+
+  return value;
+}
+
 function allSubsFor(topic) {
   return Array.isArray(subscribers[topic]) ? subscribers[topic] : [];
 }
@@ -48,7 +56,7 @@ function publish(topic, payload) {
 
 function subscribe(topic, callback, def) {
   const mySub = (payload, topic) => {
-    callback(currentVal(topic, def), topic);
+    callback(valueOrDefault(payload, def), topic);
   };
 
   subscribers[topic] = allSubsFor(topic).concat(mySub);
@@ -64,11 +72,7 @@ function subscribe(topic, callback, def) {
 }
 
 function currentVal(topic, def) {
-  if(isNotSet(store[topic]) && typeof def !== 'undefined'){
-    return def;
-  }
-
-  return store[topic];
+  return valueOrDefault(store[topic], def);
 }
 
 module.exports = {
