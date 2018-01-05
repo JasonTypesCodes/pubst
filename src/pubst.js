@@ -1,5 +1,5 @@
 /*
- *  Pubby - Basic JavaScript Pub/Sub Event Emitter
+ *  Pubst - Basic JavaScript Pub/Sub Event Emitter
  *
  *  Copyright 2017 Jason Schindler
  *
@@ -48,9 +48,14 @@ function publish(topic, payload) {
     store[topic] = payload;
     const subs = Array.isArray(subscribers[topic]) ? subscribers[topic] : [];
 
-    subs.forEach(sub => {
-      scheduleCall(sub, store[topic], topic);
-    });
+    if (subs.length === 0) {
+      // eslint-disable-next-line no-console
+      console.warn(`WARNING:: There are no subscribers that match '${topic}'!`);
+    } else {
+      subs.forEach(sub => {
+        scheduleCall(sub, store[topic], topic);
+      });
+    }
   }
 }
 
