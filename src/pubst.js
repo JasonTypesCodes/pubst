@@ -61,7 +61,7 @@
   function publish(topic, payload) {
     if (store[topic] !== payload) {
       store[topic] = payload;
-      const subs = Array.isArray(subscribers[topic]) ? subscribers[topic] : [];
+      const subs = allSubsFor(topic);
 
       if (subs.length === 0) {
         // eslint-disable-next-line no-console
