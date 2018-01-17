@@ -1,11 +1,11 @@
 {
   "name": "pubst",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Basic JavaScript Pub/Sub Event Emitter",
   "main": "lib/pubst.js",
   "scripts": {
-    "build": "babel src -d lib",
     "lint": "eslint ./src",
+    "prepublish": "babel src -d lib",
     "test": "mocha ./src/*.test.js"
   },
   "repository": {
@@ -34,9 +34,9 @@
     "babel-preset-env": "1.6.1",
     "chai": "4.1.2",
     "clear-require": "2.0.0",
-    "eslint": "4.14.0",
+    "eslint": "4.15.0",
     "mocha": "4.1.0",
-    "sinon": "4.1.3",
+    "sinon": "4.1.6",
     "sinon-chai": "2.14.0"
   }
 }

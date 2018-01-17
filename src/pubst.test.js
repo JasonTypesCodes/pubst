@@ -123,7 +123,7 @@ describe('pubst', () => {
       clock.tick(1);
 
       expect(handler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
-      handler.reset();
+      handler.resetHistory();
 
       pubst.publish(TEST_TOPIC_1, null);
 
@@ -155,10 +155,10 @@ describe('pubst', () => {
       expect(topic2Handler1).not.to.have.been.called;
       expect(topic2Handler2).not.to.have.been.called;
 
-      topic1Handler1.reset();
-      topic1Handler2.reset();
-      topic2Handler1.reset();
-      topic2Handler2.reset();
+      topic1Handler1.resetHistory();
+      topic1Handler2.resetHistory();
+      topic2Handler1.resetHistory();
+      topic2Handler2.resetHistory();
 
       pubst.publish(TEST_TOPIC_2, testPayload);
 
@@ -189,8 +189,8 @@ describe('pubst', () => {
       expect(handler1).to.have.been.calledWith(testPayload1, TEST_TOPIC_1);
       expect(handler2).to.have.been.calledWith(testPayload1, TEST_TOPIC_1);
 
-      handler1.reset();
-      handler2.reset();
+      handler1.resetHistory();
+      handler2.resetHistory();
 
       unsub1();
 
@@ -201,8 +201,8 @@ describe('pubst', () => {
       expect(handler1).not.to.have.been.called;
       expect(handler2).to.have.been.calledWith(testPayload2, TEST_TOPIC_1);
 
-      handler1.reset();
-      handler2.reset();
+      handler1.resetHistory();
+      handler2.resetHistory();
 
       unsub2();
 
@@ -227,7 +227,7 @@ describe('pubst', () => {
       clock.tick(1);
 
       expect(handler).to.have.been.calledWith(originalPayload, TEST_TOPIC_1);
-      handler.reset();
+      handler.resetHistory();
 
       pubst.publish(TEST_TOPIC_1, null);
       clock.tick(1);
