@@ -111,6 +111,27 @@ describe('pubst', () => {
       expect(handler).to.have.been.calledWith(defaultPayload, TEST_TOPIC_1);
     });
 
+    it('calls subscribers once when the same value is published multiple times', () => {
+      const testPayload = 'test payload';
+      const handler = sinon.spy();
+
+      pubst.subscribe(TEST_TOPIC_1, handler);
+      pubst.publish(TEST_TOPIC_1, testPayload);
+
+      clock.tick(1);
+
+      expect(handler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
+      handler.resetHistory();
+
+      pubst.publish(TEST_TOPIC_1, testPayload);
+      pubst.publish(TEST_TOPIC_1, testPayload);
+      pubst.publish(TEST_TOPIC_1, testPayload);
+
+      clock.tick(1);
+
+      expect(handler).not.to.have.been.called;
+    });
+
     it('calls the subscriber with the default value if the topic has been set with null', () => {
       const testPayload = 'test payload';
       const defaultPayload = 'default payload';
@@ -256,4 +277,139 @@ describe('pubst', () => {
     });
   });
 
+  describe('clear', () => {
+    it('clears a topic', () => {
+      const testValue = 'some value';
+      const testDefault = 'some default';
+
+      pubst.publish(TEST_TOPIC_1, testValue);
+
+      expect(pubst.currentVal(TEST_TOPIC_1)).to.equal(testValue);
+
+      pubst.clear(TEST_TOPIC_1);
+
+      expect(pubst.currentVal(TEST_TOPIC_1)).to.equal(null);
+      expect(pubst.currentVal(TEST_TOPIC_1, testDefault)).to.equal(testDefault);
+    });
+
+    it('calls subscribers with null when the topic is cleared and there is no default', () => {
+      const testValue = 'some value';
+
+      pubst.publish(TEST_TOPIC_1, testValue);
+
+      const sub = sinon.spy();
+
+      pubst.subscribe(TEST_TOPIC_1, sub);
+
+      clock.tick(1);
+
+      expect(sub).to.have.been.calledWith(testValue);
+      sub.resetHistory();
+
+      pubst.clear(TEST_TOPIC_1);
+
+      clock.tick(1);
+
+      expect(sub).to.have.been.calledWith(null, TEST_TOPIC_1);
+    });
+
+    it('calls subscribers with their default when the topic is cleared', () => {
+      const testValue = 'some value';
+      const testDefault = 'some default';
+
+      pubst.publish(TEST_TOPIC_1, testValue);
+
+      const sub = sinon.spy();
+
+      pubst.subscribe(TEST_TOPIC_1, sub, testDefault);
+
+      clock.tick(1);
+
+      expect(sub).to.have.been.calledWith(testValue);
+      sub.resetHistory();
+
+      pubst.clear(TEST_TOPIC_1);
+
+      clock.tick(1);
+
+      expect(sub).to.have.been.calledWith(testDefault, TEST_TOPIC_1);
+    });
+
+    it('does not call subscribers on topics that were never published', () => {
+
+      const sub = sinon.spy();
+
+      pubst.subscribe(TEST_TOPIC_1, sub);
+
+      pubst.clear(TEST_TOPIC_1);
+
+      clock.tick(1);
+
+      expect(sub).not.to.have.been.called;
+    });
+
+    it('does not call subscribers on topics that are already cleared', () => {
+      const testValue = 'some value';
+
+      pubst.publish(TEST_TOPIC_1, testValue);
+
+      const sub = sinon.spy();
+
+      pubst.subscribe(TEST_TOPIC_1, sub);
+
+      clock.tick(1);
+
+      expect(sub).to.have.been.calledWith(testValue, TEST_TOPIC_1);
+      sub.resetHistory();
+
+      pubst.clear(TEST_TOPIC_1);
+
+      clock.tick(1);
+
+      expect(sub).to.have.been.calledWith(null, TEST_TOPIC_1);
+      sub.resetHistory();
+
+      pubst.clear(TEST_TOPIC_1);
+
+      clock.tick(1);
+      expect(sub).not.to.have.been.called;
+    });
+  });
+
+  describe('clearAll', () => {
+    it('clears all topics that have been published to', () => {
+      const testVal1 = 'value 1';
+      const testVal2 = 'value 2';
+
+      const TEST_TOPIC_3 = 'test.topic.three';
+
+      const sub1 = sinon.spy();
+      const sub2 = sinon.spy();
+      const sub3 = sinon.spy();
+
+      pubst.subscribe(TEST_TOPIC_1, sub1);
+      pubst.subscribe(TEST_TOPIC_2, sub2);
+      pubst.subscribe(TEST_TOPIC_3, sub3);
+
+      pubst.publish(TEST_TOPIC_1, testVal1);
+      pubst.publish(TEST_TOPIC_2, testVal2);
+
+      clock.tick(1);
+
+      expect(sub1).to.have.been.calledWith(testVal1, TEST_TOPIC_1);
+      expect(sub2).to.have.been.calledWith(testVal2, TEST_TOPIC_2);
+      expect(sub3).not.to.have.been.called;
+
+      sub1.resetHistory();
+      sub2.resetHistory();
+
+      pubst.clearAll();
+
+      clock.tick(1);
+
+      expect(sub1).to.have.been.calledWith(null, TEST_TOPIC_1);
+      expect(sub2).to.have.been.calledWith(null, TEST_TOPIC_2);
+      expect(sub3).not.to.have.been.called;
+    });
+  });
 });

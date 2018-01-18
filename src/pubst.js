@@ -95,7 +95,19 @@
     return valueOrDefault(store[topic], def);
   }
 
+  function clear(topic) {
+    if (store.hasOwnProperty(topic)) {
+      publish(topic, null);
+    }
+  }
+
+  function clearAll() {
+    Object.keys(store).forEach(clear);
+  }
+
   return {
+    clear,
+    clearAll,
     currentVal,
     publish,
     subscribe
