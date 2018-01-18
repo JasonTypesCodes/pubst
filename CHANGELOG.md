@@ -1,4 +1,11 @@
 
+## v0.0.8 - Jan 17 2016
+  + Added `clear` method
+  + Added `clearAll` method
+
+## v0.0.7 - Jan 16 2018
+  + Nothing of consequence
+
 ## v0.0.6 - Jan 04 2018
   + Adds support for AMD modules and browser globals.  Based on `returnExports.js` from [UMD](https://github.com/umdjs/umd).
 
