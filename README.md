@@ -1,5 +1,7 @@
 # Pubst
 
+[![Build Status](https://travis-ci.org/VoltiSubito/pubst.svg?branch=main)](https://travis-ci.org/VoltiSubito/pubst)
+
 I suggest that you **DO NOT** use this for anything terribly serious just yet.  I'm still kind of feeling it out myself.
 
 This is yet another basic asynchronous pub/sub implementation in JavaScript.  I almost used [PubSubJS](https://github.com/mroderick/PubSubJS), but there are a few features I wanted that it doesn't support.  I may try and add those in so I don't need to maintain this lib ;-). The features I wanted in a pub/sub lib (in order of importance) are:
