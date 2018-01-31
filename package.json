@@ -1,6 +1,6 @@
 {
   "name": "pubst",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Basic JavaScript Pub/Sub Event Emitter",
   "main": "lib/pubst.js",
   "scripts": {
