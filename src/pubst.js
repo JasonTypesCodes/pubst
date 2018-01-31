@@ -31,6 +31,26 @@
     root.pubst = factory();
 }
 }(typeof self !== 'undefined' ? self : this, function () {
+
+  const config = {
+    showWarnings: true
+  };
+
+  function warn(...messages) {
+    if (config.showWarnings) {
+      // eslint-disable-next-line no-console
+      console.warn('WARNING:', ...messages);
+    }
+  }
+
+  function configure(userConfig) {
+    for (const key in config) {
+      if (userConfig.hasOwnProperty(key)) {
+        config[key] = userConfig[key];
+      }
+    }
+  }
+
   const store = {};
   const subscribers = {};
 
@@ -64,8 +84,7 @@
       const subs = allSubsFor(topic);
 
       if (subs.length === 0) {
-        // eslint-disable-next-line no-console
-        console.warn(`WARNING:: There are no subscribers that match '${topic}'!`);
+        warn(`There are no subscribers that match '${topic}'!`);
       } else {
         subs.forEach(sub => {
           scheduleCall(sub, store[topic], topic);
@@ -108,6 +127,7 @@
   return {
     clear,
     clearAll,
+    configure,
     currentVal,
     publish,
     subscribe

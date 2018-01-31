@@ -16,6 +16,7 @@ describe('pubst', () => {
   beforeEach(() => {
     clock = sinon.useFakeTimers();
     pubst = require('./pubst');
+    pubst.configure({showWarnings: false});
   });
 
   afterEach(() => {
