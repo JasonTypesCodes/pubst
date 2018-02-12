@@ -43,9 +43,9 @@
     }
   }
 
-  function configure(userConfig) {
-    for (const key in config) {
-      if (userConfig.hasOwnProperty(key)) {
+  function configure(userConfig = {}) {
+    for (const key in userConfig) {
+      if (config.hasOwnProperty(key)) {
         config[key] = userConfig[key];
       }
     }
