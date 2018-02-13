@@ -52,7 +52,38 @@
   }
 
   const store = {};
-  const subscribers = {};
+  const stringSubs = {};
+  let regexSubs = [];
+
+  function getStringSubsFor(topic) {
+    return Array.isArray(stringSubs[topic]) ? stringSubs[topic] : [];
+  }
+
+  function getRegexSubsFor(topic) {
+    return regexSubs.filter(sub => Boolean(topic.match(sub.topic)));
+  }
+
+  function addSub(subscriber) {
+    if (typeof subscriber.topic === 'string') {
+      stringSubs[subscriber.topic] = getStringSubsFor(subscriber.topic).concat(subscriber);
+    } else if (subscriber.topic instanceof RegExp) {
+      regexSubs.push(subscriber);
+    } else {
+      throw new Error('Unable to add subscriber.  Topic is not a string or a RegExp');
+    }
+  }
+
+  function removeSub(subscriber) {
+    if (typeof subscriber.topic === 'string') {
+      stringSubs[subscriber.topic] = getStringSubsFor(subscriber.topic).filter(sub => sub !== subscriber);
+    } else if (subscriber.topic instanceof RegExp) {
+      regexSubs = regexSubs.filter(sub => sub !== subscriber);
+    }
+  }
+
+  function allSubsFor(topic) {
+    return getStringSubsFor(topic).concat(getRegexSubsFor(topic));
+  }
 
   function isNotSet(item) {
     return item === null || typeof item === 'undefined';
@@ -70,10 +101,6 @@
     return value;
   }
 
-  function allSubsFor(topic) {
-    return Array.isArray(subscribers[topic]) ? subscribers[topic] : [];
-  }
-
   function scheduleCall(callback, payload, topic) {
     setTimeout(callback, 0, payload, topic);
   }
@@ -87,26 +114,47 @@
         warn(`There are no subscribers that match '${topic}'!`);
       } else {
         subs.forEach(sub => {
-          scheduleCall(sub, store[topic], topic);
+          scheduleCall(sub.subFn, store[topic], topic);
         });
       }
     }
   }
 
   function subscribe(topic, callback, def) {
-    const mySub = (payload, topic) => {
-      callback(valueOrDefault(payload, def), topic);
+    const subscriber = {
+      topic,
+      default: def,
+      subFn: (payload, topic) => {
+        callback(valueOrDefault(payload, def), topic);
+      }
     };
 
-    subscribers[topic] = allSubsFor(topic).concat(mySub);
+    addSub(subscriber);
 
-    const current = currentVal(topic, def);
-    if (isSet(current)) {
-      scheduleCall(mySub, current, topic);
+    let stored;
+
+    if (typeof topic === 'string') {
+      stored = [{
+        topic,
+        val: currentVal(topic, def)
+      }];
+    } else if (topic instanceof RegExp) {
+      stored = Object.keys(store).filter(key => key.match(topic)).map(key => {
+        return {
+          topic: key,
+          val: currentVal(key, def)
+        };
+      });
     }
 
+    stored.forEach(item => {
+      if (isSet(item.val)) {
+        scheduleCall(subscriber.subFn, item.val, item.topic);
+      }
+    });
+
     return () => {
-      subscribers[topic] = allSubsFor(topic).filter(aSub => aSub !== mySub);
+      removeSub(subscriber);
     };
   }
 

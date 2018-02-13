@@ -274,8 +274,217 @@ describe('pubst', () => {
       payloads.forEach(payload => {
         expect(handler).to.have.been.calledWith(payload, TEST_TOPIC_1);
       });
-
     });
+
+    describe('regex subscribers', () => {
+
+      it('allows a subscriber to use a regex for a topic name', () => {
+        const specificHandler = sinon.spy();
+        const allTestTopicHandler = sinon.spy();
+        const anythingHandler = sinon.spy();
+
+        const otherTopic = 'ANOTHER_TOPIC!';
+
+        const testPayload1 = 'one';
+        const testPayload2 = 'two';
+        const testPayload3 = 'something else';
+
+        pubst.subscribe(/test\.topic\.one/, specificHandler);
+        pubst.subscribe(/test\.topic\..*/, allTestTopicHandler);
+        pubst.subscribe(/.*/, anythingHandler);
+
+        pubst.publish(TEST_TOPIC_1, testPayload1);
+        pubst.publish(TEST_TOPIC_2, testPayload2);
+        pubst.publish(otherTopic, testPayload3);
+
+        clock.tick(1);
+
+        expect(specificHandler).to.have.callCount(1);
+        expect(allTestTopicHandler).to.have.callCount(2);
+        expect(anythingHandler).to.have.callCount(3);
+
+        expect(specificHandler).to.have.been.calledWith(testPayload1, TEST_TOPIC_1);
+
+        expect(allTestTopicHandler).to.have.been.calledWith(testPayload1, TEST_TOPIC_1);
+        expect(allTestTopicHandler).to.have.been.calledWith(testPayload2, TEST_TOPIC_2);
+
+        expect(anythingHandler).to.have.been.calledWith(testPayload1, TEST_TOPIC_1);
+        expect(anythingHandler).to.have.been.calledWith(testPayload2, TEST_TOPIC_2);
+        expect(anythingHandler).to.have.been.calledWith(testPayload3, otherTopic);
+      });
+
+      it('are primed with ALL existing topics that match', () => {
+        const specificHandler = sinon.spy();
+        const allTestTopicHandler = sinon.spy();
+        const anythingHandler = sinon.spy();
+
+        const otherTopic = 'ANOTHER_TOPIC!';
+
+        const testPayload1 = 'one';
+        const testPayload2 = 'two';
+        const testPayload3 = 'something else';
+
+        pubst.publish(TEST_TOPIC_1, testPayload1);
+        pubst.publish(TEST_TOPIC_2, testPayload2);
+        pubst.publish(otherTopic, testPayload3);
+
+        clock.tick(1);
+
+        pubst.subscribe(/test\.topic\.one/, specificHandler);
+        pubst.subscribe(/test\.topic\..*/, allTestTopicHandler);
+        pubst.subscribe(/.*/, anythingHandler);
+
+        clock.tick(1);
+
+        expect(specificHandler).to.have.callCount(1);
+        expect(allTestTopicHandler).to.have.callCount(2);
+        expect(anythingHandler).to.have.callCount(3);
+
+        expect(specificHandler).to.have.been.calledWith(testPayload1, TEST_TOPIC_1);
+
+        expect(allTestTopicHandler).to.have.been.calledWith(testPayload1, TEST_TOPIC_1);
+        expect(allTestTopicHandler).to.have.been.calledWith(testPayload2, TEST_TOPIC_2);
+
+        expect(anythingHandler).to.have.been.calledWith(testPayload1, TEST_TOPIC_1);
+        expect(anythingHandler).to.have.been.calledWith(testPayload2, TEST_TOPIC_2);
+        expect(anythingHandler).to.have.been.calledWith(testPayload3, otherTopic);
+      });
+
+      it('can live side by side with string handlers', () => {
+        const specificHandler = sinon.spy();
+        const allTestTopicHandler = sinon.spy();
+        const anythingHandler = sinon.spy();
+
+        const otherTopic = 'ANOTHER_TOPIC!';
+
+        const testPayload1 = 'one';
+        const testPayload2 = 'two';
+        const testPayload3 = 'something else';
+
+        pubst.publish(TEST_TOPIC_1, testPayload1);
+        pubst.publish(TEST_TOPIC_2, testPayload2);
+        pubst.publish(otherTopic, testPayload3);
+
+        clock.tick(1);
+
+        pubst.subscribe(TEST_TOPIC_1, specificHandler);
+        pubst.subscribe(/test\.topic\..*/, allTestTopicHandler);
+        pubst.subscribe(/.*/, anythingHandler);
+
+        clock.tick(1);
+
+        expect(specificHandler).to.have.callCount(1);
+        expect(allTestTopicHandler).to.have.callCount(2);
+        expect(anythingHandler).to.have.callCount(3);
+
+        expect(specificHandler).to.have.been.calledWith(testPayload1, TEST_TOPIC_1);
+
+        expect(allTestTopicHandler).to.have.been.calledWith(testPayload1, TEST_TOPIC_1);
+        expect(allTestTopicHandler).to.have.been.calledWith(testPayload2, TEST_TOPIC_2);
+
+        expect(anythingHandler).to.have.been.calledWith(testPayload1, TEST_TOPIC_1);
+        expect(anythingHandler).to.have.been.calledWith(testPayload2, TEST_TOPIC_2);
+        expect(anythingHandler).to.have.been.calledWith(testPayload3, otherTopic);
+      });
+
+      it('can unsubscribe', () => {
+        const anythingHandler = sinon.spy();
+
+        const otherTopic = 'ANOTHER_TOPIC!';
+
+        const testPayload = 'something else';
+
+        const unsub = pubst.subscribe(/.*/, anythingHandler);
+
+        pubst.publish(TEST_TOPIC_1, testPayload);
+        pubst.publish(TEST_TOPIC_2, testPayload);
+        pubst.publish(otherTopic, testPayload);
+
+        clock.tick(1);
+
+        expect(anythingHandler).to.have.callCount(3);
+
+        expect(anythingHandler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
+        expect(anythingHandler).to.have.been.calledWith(testPayload, TEST_TOPIC_2);
+        expect(anythingHandler).to.have.been.calledWith(testPayload, otherTopic);
+
+        anythingHandler.resetHistory();
+
+        unsub();
+
+        pubst.publish(otherTopic, testPayload);
+
+        clock.tick(1);
+
+        expect(anythingHandler).not.to.have.been.called;
+      });
+
+      it('receive the same default for all topics', () => {
+        const anythingHandler = sinon.spy();
+
+        const otherTopic = 'ANOTHER_TOPIC!';
+
+        const testPayload = 'something else';
+        const testDefault = 'some default';
+
+        pubst.subscribe(/.*/, anythingHandler, testDefault);
+
+        clock.tick(1);
+
+        expect(anythingHandler).not.to.have.been.called;
+
+        pubst.publish(TEST_TOPIC_1, testPayload);
+        pubst.publish(TEST_TOPIC_2, testPayload);
+        pubst.publish(otherTopic, testPayload);
+
+        clock.tick(1);
+
+        expect(anythingHandler).to.have.callCount(3);
+
+        expect(anythingHandler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
+        expect(anythingHandler).to.have.been.calledWith(testPayload, TEST_TOPIC_2);
+        expect(anythingHandler).to.have.been.calledWith(testPayload, otherTopic);
+
+        anythingHandler.resetHistory();
+
+        pubst.publish(TEST_TOPIC_1);
+        pubst.publish(TEST_TOPIC_2);
+        pubst.publish(otherTopic);
+
+        clock.tick(1);
+
+        expect(anythingHandler).to.have.callCount(3);
+
+        expect(anythingHandler).to.have.been.calledWith(testDefault, TEST_TOPIC_1);
+        expect(anythingHandler).to.have.been.calledWith(testDefault, TEST_TOPIC_2);
+        expect(anythingHandler).to.have.been.calledWith(testDefault, otherTopic);
+
+        anythingHandler.resetHistory();
+
+        const newOtherTopic = 'another.new.topic';
+
+        pubst.publish(newOtherTopic, testPayload);
+
+        clock.tick(1);
+
+        expect(anythingHandler).to.have.callCount(1);
+        expect(anythingHandler).to.have.been.calledWith(testPayload, newOtherTopic);
+
+        anythingHandler.resetHistory();
+
+        pubst.clearAll();
+
+        clock.tick(1);
+
+        expect(anythingHandler).to.have.callCount(4);
+        expect(anythingHandler).to.have.been.calledWith(testDefault, newOtherTopic);
+        expect(anythingHandler).to.have.been.calledWith(testDefault, TEST_TOPIC_1);
+        expect(anythingHandler).to.have.been.calledWith(testDefault, TEST_TOPIC_2);
+        expect(anythingHandler).to.have.been.calledWith(testDefault, otherTopic);
+
+      });
+    });
+
   });
 
   describe('clear', () => {
