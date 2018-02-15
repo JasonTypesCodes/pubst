@@ -1,3 +1,5 @@
+## v0.1.0 - Feb 14 2018
+  + Adds RegExp support to subscriptions
 
 ## v0.0.9 - Jan 30 2018
   + Added `configure` method
