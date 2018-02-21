@@ -1,3 +1,6 @@
+## v0.1.1 - Feb 20 2018
+  + Adds support for creating a subscription with a config object
+
 ## v0.1.0 - Feb 14 2018
   + Adds RegExp support to subscriptions
 
