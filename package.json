@@ -34,7 +34,7 @@
     "babel-preset-env": "1.6.1",
     "chai": "4.1.2",
     "clear-require": "2.0.0",
-    "eslint": "4.17.0",
+    "eslint": "4.18.1",
     "mocha": "5.0.1",
     "sinon": "4.3.0",
     "sinon-chai": "2.14.0"
