@@ -101,8 +101,8 @@
     return value;
   }
 
-  function scheduleCall(callback, payload, topic) {
-    setTimeout(callback, 0, payload, topic);
+  function scheduleCall(handler, payload, def, topic) {
+    setTimeout(handler, 0, valueOrDefault(payload, def), topic);
   }
 
   function publish(topic, payload) {
@@ -114,22 +114,31 @@
         warn(`There are no subscribers that match '${topic}'!`);
       } else {
         subs.forEach(sub => {
-          scheduleCall(sub.subFn, store[topic], topic);
+          scheduleCall(sub.handler, store[topic], sub.default, topic);
         });
       }
     }
   }
 
-  function subscribe(topic, callback, def) {
-    const subscriber = {
+  function subscribe(topic, handler, def) {
+    const subscription = {
       topic,
-      default: def,
-      subFn: (payload, topic) => {
-        callback(valueOrDefault(payload, def), topic);
-      }
+      default: undefined,
+      handler: () => {}
     };
 
-    addSub(subscriber);
+    if (typeof handler === 'function') {
+      subscription.default = def;
+      subscription.handler = handler;
+    } else if (typeof handler === 'object') {
+      for (const key in handler) {
+        if (subscription.hasOwnProperty(key)) {
+          subscription[key] = handler[key];
+        }
+      }
+    }
+
+    addSub(subscription);
 
     let stored;
 
@@ -149,12 +158,12 @@
 
     stored.forEach(item => {
       if (isSet(item.val)) {
-        scheduleCall(subscriber.subFn, item.val, item.topic);
+        scheduleCall(subscription.handler, item.val, subscription.default, item.topic);
       }
     });
 
     return () => {
-      removeSub(subscriber);
+      removeSub(subscription);
     };
   }
 

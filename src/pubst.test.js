@@ -154,6 +154,36 @@ describe('pubst', () => {
       expect(handler).to.have.been.calledWith(defaultPayload, TEST_TOPIC_1);
     });
 
+    it('allows subscriptions to be made with config objects', () => {
+      const testPayload = 'test payload';
+      const defaultPayload = 'default payload';
+      const handler1 = sinon.spy();
+      const handler2 = sinon.spy();
+
+      pubst.subscribe(TEST_TOPIC_1, {
+        handler: handler1,
+        default: defaultPayload
+      });
+
+      pubst.subscribe(TEST_TOPIC_1, handler2, defaultPayload);
+
+      pubst.publish(TEST_TOPIC_1, testPayload);
+
+      clock.tick(1);
+
+      expect(handler1).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
+      expect(handler2).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
+      handler1.resetHistory();
+      handler2.resetHistory();
+
+      pubst.publish(TEST_TOPIC_1, null);
+
+      clock.tick(1);
+
+      expect(handler1).to.have.been.calledWith(defaultPayload, TEST_TOPIC_1);
+      expect(handler2).to.have.been.calledWith(defaultPayload, TEST_TOPIC_1);
+    });
+
     it('calls all the subscribers for a topic', () => {
       const testPayload = 'test payload';
 
