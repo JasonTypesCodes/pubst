@@ -101,22 +101,27 @@
     return value;
   }
 
-  function scheduleCall(handler, payload, def, topic) {
-    setTimeout(handler, 0, valueOrDefault(payload, def), topic);
+  function scheduleCall(sub, payload, topic) {
+    setTimeout(() => {
+      const value = valueOrDefault(payload, sub.default);
+      if (sub.allowRepeats || sub.lastVal !== value || sub.lastTopic !== topic) {
+        sub.handler(value, topic);
+        sub.lastVal = value;
+        sub.lastTopic = topic;
+      }
+    }, 0);
   }
 
   function publish(topic, payload) {
-    if (store[topic] !== payload) {
-      store[topic] = payload;
-      const subs = allSubsFor(topic);
+    store[topic] = payload;
+    const subs = allSubsFor(topic);
 
-      if (subs.length === 0) {
-        warn(`There are no subscribers that match '${topic}'!`);
-      } else {
-        subs.forEach(sub => {
-          scheduleCall(sub.handler, store[topic], sub.default, topic);
-        });
-      }
+    if (subs.length === 0) {
+      warn(`There are no subscribers that match '${topic}'!`);
+    } else {
+      subs.forEach(sub => {
+        scheduleCall(sub, store[topic], topic);
+      });
     }
   }
 
@@ -124,6 +129,8 @@
     const subscription = {
       topic,
       default: undefined,
+      doPrime: true,
+      allowRepeats: false,
       handler: () => {}
     };
 
@@ -140,27 +147,29 @@
 
     addSub(subscription);
 
-    let stored;
+    if (subscription.doPrime) {
+      let stored;
 
-    if (typeof topic === 'string') {
-      stored = [{
-        topic,
-        val: currentVal(topic, def)
-      }];
-    } else if (topic instanceof RegExp) {
-      stored = Object.keys(store).filter(key => key.match(topic)).map(key => {
-        return {
-          topic: key,
-          val: currentVal(key, def)
-        };
+      if (typeof topic === 'string') {
+        stored = [{
+          topic,
+          val: currentVal(topic, def)
+        }];
+      } else if (topic instanceof RegExp) {
+        stored = Object.keys(store).filter(key => key.match(topic)).map(key => {
+          return {
+            topic: key,
+            val: currentVal(key, def)
+          };
+        });
+      }
+
+      stored.forEach(item => {
+        if (isSet(item.val)) {
+          scheduleCall(subscription, item.val, item.topic);
+        }
       });
     }
-
-    stored.forEach(item => {
-      if (isSet(item.val)) {
-        scheduleCall(subscription.handler, item.val, subscription.default, item.topic);
-      }
-    });
 
     return () => {
       removeSub(subscription);

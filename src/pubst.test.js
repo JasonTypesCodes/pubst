@@ -101,6 +101,28 @@ describe('pubst', () => {
       expect(handler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
     });
 
+    it('does not call the subscriber if the topic already has a set value when doPrime is false', () => {
+      const testPayload = 'some test payload';
+      const handler = sinon.spy();
+
+      pubst.publish(TEST_TOPIC_1, testPayload);
+
+      pubst.subscribe(TEST_TOPIC_1, {
+        doPrime: false,
+        handler
+      });
+
+      clock.tick(1);
+
+      expect(handler).to.have.callCount(0);
+
+      pubst.publish(TEST_TOPIC_1, testPayload);
+
+      clock.tick(1);
+
+      // expect(handler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
+    });
+
     it('calls the subscriber with the default value if the topic has not been set', () => {
       const defaultPayload = 'default payload';
       const handler = sinon.spy();
@@ -112,7 +134,7 @@ describe('pubst', () => {
       expect(handler).to.have.been.calledWith(defaultPayload, TEST_TOPIC_1);
     });
 
-    it('calls subscribers once when the same value is published multiple times', () => {
+    it('does not call subscribers when the same value is published multiple times', () => {
       const testPayload = 'test payload';
       const handler = sinon.spy();
 
@@ -125,12 +147,32 @@ describe('pubst', () => {
       handler.resetHistory();
 
       pubst.publish(TEST_TOPIC_1, testPayload);
-      pubst.publish(TEST_TOPIC_1, testPayload);
-      pubst.publish(TEST_TOPIC_1, testPayload);
 
       clock.tick(1);
 
       expect(handler).not.to.have.been.called;
+    });
+
+    it('allows subscriptions to permit values to repeat', () => {
+      const testPayload = 'test payload';
+      const handler = sinon.spy();
+
+      pubst.subscribe(TEST_TOPIC_1, {
+        allowRepeats: true,
+        handler
+      });
+      pubst.publish(TEST_TOPIC_1, testPayload);
+
+      clock.tick(1);
+
+      expect(handler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
+      handler.resetHistory();
+
+      pubst.publish(TEST_TOPIC_1, testPayload);
+
+      clock.tick(1);
+
+      expect(handler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
     });
 
     it('calls the subscriber with the default value if the topic has been set with null', () => {
