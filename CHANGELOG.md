@@ -1,3 +1,7 @@
+## v0.2.0 - Mar 08 2018
+  + Adds `doPrime` subscription configuration option
+  + Adds `allowRepeats` subscription configuration option
+
 ## v0.1.1 - Feb 20 2018
   + Adds support for creating a subscription with a config object
 
