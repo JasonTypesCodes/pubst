@@ -1,5 +1,6 @@
-/*
+/**
  *  Pubst - Basic JavaScript Pub/Sub Event Emitter
+ * @module pubst
  *
  *  Copyright 2017 Jason Schindler
  *
@@ -15,7 +16,6 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-
 
 (function (root, factory) {
   if (typeof define === 'function' && define.amd) {
@@ -43,6 +43,13 @@
     }
   }
 
+  /**
+   * Set global configuration.
+   * @param {Object} config - Your configuration
+   *
+   * Available options are:
+   *  `showWarnings` (default: true) - Show warnings in the console.
+   */
   function configure(userConfig = {}) {
     for (const key in userConfig) {
       if (config.hasOwnProperty(key)) {
@@ -112,6 +119,11 @@
     }, 0);
   }
 
+  /**
+   * Publish to a topic
+   * @param {string} topic - The topic to publish to
+   * @param {*} payload The payload to publish
+   */
   function publish(topic, payload) {
     store[topic] = payload;
     const subs = allSubsFor(topic);
@@ -125,6 +137,36 @@
     }
   }
 
+  /**
+   * Subscribe to one or more topics
+   * @param {string|RegExp} topic - The topic to receive updates for
+   * @param {Function|Object} handler
+   * @param {*} default - (Optional) Value to send when topic is empty
+   *
+   * @returns {Function} - A function that will remove this
+   *                       subscription from getting further updates.
+   *
+   * The first argument may be a string or a regular expression.
+   * If a string is provided, the handler will be called for all
+   * updates for that topic.  If a regular expression is provided,
+   * the handler will be called for all topics that match the regular
+   * expression.
+   *
+   * The second argument may be a function or an object.  The object
+   * is necessary if you want to provide configuration options for
+   * this subscription.  Available options are:
+   *
+   *  `default` - (Default: undefined) - Default value for this sub.
+   *  `doPrime` - (Default: true) - Should the handler be primed with
+   *                                the last value?
+   *  `allowRepeats` - (Default: false) - Should the handler be called
+   *                                      when the value doesn't change
+   *  `handler` - (Required) - The handler to call.
+   *
+   * The handler will be called on topic updates.  It will be passed
+   * the new value of the topic as the first argument, and the name of
+   * the topic as the second argument.
+   */
   function subscribe(topic, handler, def) {
     const subscription = {
       topic,
@@ -176,16 +218,32 @@
     };
   }
 
+  /**
+   * Get the current value of a topic.
+   * @param {string} topic - The topic to get the value of.
+   * @param {*} default - (Optional) a value to return if the topic is
+   *                      empty.
+   * @returns {*} - The current value or the default
+   */
   function currentVal(topic, def) {
     return valueOrDefault(store[topic], def);
   }
 
+  /**
+   * Clears a given topic.
+   * @param {string} topic - The topic to clear
+   *
+   * Clears the topic by publishing a `null` to it.
+   */
   function clear(topic) {
     if (store.hasOwnProperty(topic)) {
       publish(topic, null);
     }
   }
 
+  /**
+   * Clears all known topics.
+   */
   function clearAll() {
     Object.keys(store).forEach(clear);
   }
