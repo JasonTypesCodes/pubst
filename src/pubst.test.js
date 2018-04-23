@@ -120,7 +120,7 @@ describe('pubst', () => {
 
       clock.tick(1);
 
-      // expect(handler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
+      expect(handler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
     });
 
     it('calls the subscriber with the default value if the topic has not been set', () => {
