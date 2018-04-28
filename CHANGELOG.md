@@ -1,3 +1,6 @@
+## v0.2.1 - Apr 27 2018
+  + Adds documentation
+
 ## v0.2.0 - Mar 08 2018
   + Adds `doPrime` subscription configuration option
   + Adds `allowRepeats` subscription configuration option
