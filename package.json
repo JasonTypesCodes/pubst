@@ -31,12 +31,12 @@
   "homepage": "https://github.com/VoltiSubito/pubst#readme",
   "devDependencies": {
     "babel-cli": "6.26.0",
-    "babel-preset-env": "1.6.1",
+    "babel-preset-env": "1.7.0",
     "chai": "4.1.2",
     "clear-require": "2.0.0",
     "eslint": "4.19.1",
     "mocha": "5.1.1",
-    "sinon": "4.5.0",
+    "sinon": "5.0.7",
     "sinon-chai": "3.0.0"
   }
 }
