@@ -1,8 +1,7 @@
 /**
- *  Pubst - Basic JavaScript Pub/Sub Event Emitter
- * @module pubst
+ *  Pubst - A slightly opinionated pub/sub library for JavaScript.
  *
- *  Copyright 2017 Jason Schindler
+ *  Copyright 2017-2018 Jason Schindler
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -15,6 +14,12 @@
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
+ *
+ * @file pubst.js
+ * @module pubst
+ * @author Jason Schindler
+ * @copyright Jason Schindler 2017-2018
+ * @description A slightly opinionated pub/sub library for JavaScript.
  */
 
 (function (root, factory) {
@@ -44,11 +49,18 @@
   }
 
   /**
-   * Set global configuration.
+   * @summary Set global configuration.
+   *
+   * @alias module:pubst.configure
    * @param {Object} config - Your configuration
    *
+   * @description
+   * <p>
    * Available options are:
-   *  `showWarnings` (default: true) - Show warnings in the console.
+   *  <ul>
+   *    <li>`showWarnings` (default: true) - Show warnings in the console.</li>
+   *  </ul>
+   * </p>
    */
   function configure(userConfig = {}) {
     for (const key in userConfig) {
@@ -120,7 +132,9 @@
   }
 
   /**
-   * Publish to a topic
+   * @summary Publish to a topic
+   *
+   * @alias module:pubst.publish
    * @param {string} topic - The topic to publish to
    * @param {*} payload The payload to publish
    */
@@ -138,34 +152,45 @@
   }
 
   /**
-   * Subscribe to one or more topics
+   * @summary Subscribe to one or more topics
+   *
+   * @alias module:pubst.subscribe
    * @param {string|RegExp} topic - The topic to receive updates for
-   * @param {Function|Object} handler
+   * @param {Function|Object} handler - Either your handler function or
+   *                                    a subscription configuration object
    * @param {*} default - (Optional) Value to send when topic is empty
    *
    * @returns {Function} - A function that will remove this
    *                       subscription from getting further updates.
    *
+   * @description
+   * <p>
    * The first argument may be a string or a regular expression.
    * If a string is provided, the handler will be called for all
    * updates for that topic.  If a regular expression is provided,
    * the handler will be called for all topics that match the regular
    * expression.
+   * </p>
    *
+   * <p>
    * The second argument may be a function or an object.  The object
    * is necessary if you want to provide configuration options for
    * this subscription.  Available options are:
+   *  <ul>
+   *    <li>`default` - (Default: undefined) - Default value for this sub.</li>
+   *    <li>`doPrime` - (Default: true) - Should the handler be primed with
+   *        the last value?</li>
+   *    <li>`allowRepeats` - (Default: false) - Should the handler be called
+   *        when the value doesn't change?</li>
+   *    <li>`handler` - (Required) - The handler to call.</li>
+   *  </ul>
+   * </p>
    *
-   *  `default` - (Default: undefined) - Default value for this sub.
-   *  `doPrime` - (Default: true) - Should the handler be primed with
-   *                                the last value?
-   *  `allowRepeats` - (Default: false) - Should the handler be called
-   *                                      when the value doesn't change
-   *  `handler` - (Required) - The handler to call.
-   *
+   * <p>
    * The handler will be called on topic updates.  It will be passed
    * the new value of the topic as the first argument, and the name of
    * the topic as the second argument.
+   * </p>
    */
   function subscribe(topic, handler, def) {
     const subscription = {
@@ -219,7 +244,9 @@
   }
 
   /**
-   * Get the current value of a topic.
+   * @summary Get the current value of a topic.
+   *
+   * @alias module:pubst.currentVal
    * @param {string} topic - The topic to get the value of.
    * @param {*} default - (Optional) a value to return if the topic is
    *                      empty.
@@ -230,10 +257,12 @@
   }
 
   /**
-   * Clears a given topic.
+   * @summary Clears a given topic.
+   *
+   * @alias module:pubst.clear
    * @param {string} topic - The topic to clear
    *
-   * Clears the topic by publishing a `null` to it.
+   * @description Clears the topic by publishing a `null` to it.
    */
   function clear(topic) {
     if (store.hasOwnProperty(topic)) {
@@ -242,7 +271,9 @@
   }
 
   /**
-   * Clears all known topics.
+   * @summary Clears all known topics.
+   *
+   * @alias module:pubst.clearAll
    */
   function clearAll() {
     Object.keys(store).forEach(clear);
