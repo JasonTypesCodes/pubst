@@ -19,16 +19,28 @@ Pubst has a few other features worth noting:
 
 ## Basic Usage
 
+While it isn't necessarily required, it is a good idea to configure the topics you are going to use.
+
 ```js
 // File1.js
 const pubst = require('pubst');
 
+pubst.addTopic({
+  name: 'NAME',
+  default: 'World'
+});
+```
+
+```js
+// File2.js
+const pubst = require('pubst');
+
 pubst.subscribe('NAME', name => {
   console.log(`Hello ${name}!`);
-}, 'World');
+});
 
 ```
-Because the subscriber passed a default value of 'World' and the topic is currently empty, the subscriber is primed with the default value.
+Because the topic has a default value of 'World' and the topic is currently empty, the subscriber is primed with the default value.
 ```
 Hello World!
 ```
@@ -55,7 +67,7 @@ pubst.clear('NAME');
 Hello World!
 ```
 
-Each subscriber is free to define their own default for each topic.
+A subscriber is free to override the default value for their topics.
 
 ## API
 
@@ -66,11 +78,66 @@ Sets global Pubst configuration.
 #### Available options:
 
   + `showWarnings` (default: true) - Show warnings in the console.
+  + `topics` - An array of topic configurations.
 
 #### Example
 
 ```js
-pubst.configure({showWarnings: false});
+pubst.configure({
+  showWarnings: false,
+  topics: [
+    {
+      name: 'user.basicInfo',
+      default: {
+        lastName: 'No User Logged In',
+        firstName: 'No User Logged In'
+      }
+    }
+  ]
+});
+```
+
+### `addTopic(topicConfig)` or `addTopics(topicConfigArrays)`
+
+Sets the configuration for a new topic.
+
+#### Available options:
+
+  + `name` (*REQUIRED*) - A string representing the name of the topic.
+  + `default` (default: undefined) - The default value presented to subscribers when the topic is undefined or null.
+    + This can be overridden by subscribers.
+  + `eventOnly` (default: false) - Set this to `true` if this topic will not have payload data.
+  + `doPrime` (default: true) - Should new subscribers automatically receive the last published value on the topic?
+    + This can be overridden by subscribers.
+  + `allowRepeats` (default: false) - Alert subscribers of all publish events, even if the value is equal (by strict comparison) to the last value sent.
+    + This can be overridden by subscribers.
+
+#### Examples
+
+```js
+pubst.addTopics([
+  {
+    name: 'game.started',
+    default: false,
+    doPrime: true
+  },
+  {
+    name: 'player.guess',
+    default: -1,
+    allowRepeats: true,
+    doPrime: false
+  },
+  {
+    name: 'player.won',
+    eventOnly: true,
+    doPrime: false
+  }
+]);
+
+pubst.addTopic({
+  name: 'player.name',
+  default: 'Player 1'
+});
 ```
 
 ### `publish(topic, payload)`
@@ -198,4 +265,3 @@ In the not-so-far future I would like to:
 
   1. Add hooks for persistence strategies.
   2. Experiment with creating a React library that makes linking topics with props mostly painless.
-  3. Add topic-wide configuration (like: defaults)

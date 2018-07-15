@@ -59,6 +59,7 @@
    * Available options are:
    *  <ul>
    *    <li>`showWarnings` (default: true) - Show warnings in the console.</li>
+   *    <li>`topics` - An array of topic configurations. (See: `addTopic` for topic configuration options)</li>
    *  </ul>
    * </p>
    */
@@ -68,11 +69,110 @@
         config[key] = userConfig[key];
       }
     }
+
+    if (Array.isArray(userConfig.topics)) {
+      addTopics(userConfig.topics);
+    }
   }
 
   const store = {};
   const stringSubs = {};
   let regexSubs = [];
+  const topics = {};
+
+  const DEFAULT_TOPIC_CONFIG = {
+    name: '',
+    default: undefined,
+    eventOnly: false,
+    doPrime: true,
+    allowRepeats: false
+  };
+
+  const ALLOWED_SUB_PROPS = [
+    'topic',
+    'handler',
+    'default',
+    'doPrime',
+    'allowRepeats'
+  ];
+
+  function buildConfig(base, extensions) {
+    const result = {};
+
+    for (const key in base) {
+      result[key] = base[key];
+    }
+
+    for (const key in extensions) {
+      if (result.hasOwnProperty(key)) {
+        result[key] = extensions[key];
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * @summary Configure a new topic.
+   *
+   * @alias module:pubst.addTopic
+   * @param {Object} newTopicConfig - Topic configuration
+   *
+   * @description
+   * <p>
+   * Allows you to configure a new topic in pubst.
+   *
+   * Available options are:
+   *  <ul>
+   *    <li>`name` (<strong>REQUIRED</strong>) - A string representing the name of the topic.</li>
+   *    <li>
+*         `default` (default: undefined) - The default value presented to subscribers when the topic is undefined or null.
+*         This can be overridden by subscribers.
+   *    </li>
+   *    <li>
+   *      `eventOnly` (default: false) - Set this to true if this topic will not have payload data.
+   *    </li>
+   *    <li>
+   *      `doPrime` (default: true) - Should new subscribers automatically receive the last published value on the topic?
+   *      If no valid value is present, new subscribers will be primed with the default value (if configured).
+   *      This can be overridden by subscribers.
+   *    </li>
+   *    <li>
+   *      `allowRepeats` (default: false) - Alert subscribers of all publish events, even if the value is equal (by strict comparison) to the last value sent.
+   *      This can be overridden by subscribers.
+   *    </li>
+   *  </ul>
+   * </p>
+   */
+  function addTopic(newTopicConfig) {
+    const topic = buildConfig(DEFAULT_TOPIC_CONFIG, newTopicConfig);
+
+    if (!topic.name) {
+      throw new Error('Topics must have a name.');
+    }
+
+    if (topics[topic.name]) {
+      warn(`The '${topic.name}' topic has already been configured.  The previous configuration will be overwritten.`);
+    }
+
+    topics[topic.name] = topic;
+
+  }
+
+  /**
+   * @summary Configure new topics.
+   *
+   * @alias module:pubst.addTopics
+   * @param {Array<Object>} newTopicConfigs - Topic configurations
+   *
+   * @description
+   * <p>
+   * Allows you to configure new topics.  This will call `addTopic` with each item passed.
+   * For available options, see `addTopic`.
+   */
+  function addTopics(topics) {
+    topics.forEach(addTopic);
+  }
 
   function getStringSubsFor(topic) {
     return Array.isArray(stringSubs[topic]) ? stringSubs[topic] : [];
@@ -84,8 +184,15 @@
 
   function addSub(subscriber) {
     if (typeof subscriber.topic === 'string') {
+      if (!topics[subscriber.topic]) {
+        warn(`Adding a subscriber to non-configured topic '${subscriber.topic}'`);
+      }
       stringSubs[subscriber.topic] = getStringSubsFor(subscriber.topic).concat(subscriber);
     } else if (subscriber.topic instanceof RegExp) {
+      const matchCount = Object.keys(topics).filter(topic => topic.match(subscriber.topic)).length;
+      if (matchCount === 0) {
+        warn(`Adding a RegExp subscriber that matches no configured topics.`);
+      }
       regexSubs.push(subscriber);
     } else {
       throw new Error('Unable to add subscriber.  Topic is not a string or a RegExp');
@@ -104,8 +211,16 @@
     return getStringSubsFor(topic).concat(getRegexSubsFor(topic));
   }
 
+  function isUndefined(input) {
+    return typeof input === 'undefined';
+  }
+
+  function isDefined(input) {
+    return !isUndefined(input);
+  }
+
   function isNotSet(item) {
-    return item === null || typeof item === 'undefined';
+    return item === null || isUndefined(item);
   }
 
   function isSet(item) {
@@ -113,22 +228,32 @@
   }
 
   function valueOrDefault(value, def) {
-    if(isNotSet(value) && typeof def !== 'undefined'){
+    if(isNotSet(value) && isDefined(def)){
       return def;
     }
 
     return value;
   }
 
+  function getTopicConfig(topic) {
+    return topics[topic] || buildConfig(DEFAULT_TOPIC_CONFIG, {name: topic});
+  }
+
   function scheduleCall(sub, payload, topic) {
-    setTimeout(() => {
-      const value = valueOrDefault(payload, sub.default);
-      if (sub.allowRepeats || sub.lastVal !== value || sub.lastTopic !== topic) {
+    const topicConfig = getTopicConfig(topic);
+
+    const defVal = typeof sub.default === 'undefined' ? topicConfig.default : sub.default;
+    const eventOnly = sub.hasOwnProperty('eventOnly') ? sub.eventOnly : topicConfig.eventOnly;
+    const allowRepeats = sub.hasOwnProperty('allowRepeats') ? sub.allowRepeats : topicConfig.allowRepeats;
+    const value = eventOnly ? topic : valueOrDefault(payload, defVal);
+
+    if (eventOnly || allowRepeats || sub.lastVal !== value || sub.lastTopic !== topic) {
+      setTimeout(() => {
         sub.handler(value, topic);
         sub.lastVal = value;
         sub.lastTopic = topic;
-      }
-    }, 0);
+      }, 0);
+    }
   }
 
   /**
@@ -139,6 +264,10 @@
    * @param {*} payload The payload to publish
    */
   function publish(topic, payload) {
+    if (!topics[topic]) {
+      warn(`Received a publish for ${topic} but that topic has not been configured.`);
+    }
+
     store[topic] = payload;
     const subs = allSubsFor(topic);
 
@@ -193,50 +322,47 @@
    * </p>
    */
   function subscribe(topic, handler, def) {
-    const subscription = {
-      topic,
-      default: undefined,
-      doPrime: true,
-      allowRepeats: false,
-      handler: () => {}
-    };
+    let subscription;
 
     if (typeof handler === 'function') {
-      subscription.default = def;
-      subscription.handler = handler;
+      subscription = {topic, default: def, handler};
     } else if (typeof handler === 'object') {
-      for (const key in handler) {
-        if (subscription.hasOwnProperty(key)) {
+      subscription = {};
+      Object.keys(handler)
+        .filter(key => ALLOWED_SUB_PROPS.includes(key))
+        .forEach(key => {
           subscription[key] = handler[key];
-        }
-      }
+        });
+
+      subscription.topic = topic;
     }
 
     addSub(subscription);
 
-    if (subscription.doPrime) {
-      let stored;
+    let stored;
 
-      if (typeof topic === 'string') {
-        stored = [{
-          topic,
-          val: currentVal(topic, def)
-        }];
-      } else if (topic instanceof RegExp) {
-        stored = Object.keys(store).filter(key => key.match(topic)).map(key => {
-          return {
-            topic: key,
-            val: currentVal(key, def)
-          };
-        });
-      }
-
-      stored.forEach(item => {
-        if (isSet(item.val)) {
-          scheduleCall(subscription, item.val, item.topic);
-        }
+    if (typeof topic === 'string') {
+      stored = [{
+        topic,
+        val: currentVal(topic, def)
+      }];
+    } else if (topic instanceof RegExp) {
+      stored = Object.keys(store).filter(key => key.match(topic)).map(key => {
+        return {
+          topic: key,
+          val: currentVal(key, def)
+        };
       });
     }
+
+    stored.forEach(item => {
+      const topicConfig = getTopicConfig(item.topic);
+      const doPrime = subscription.hasOwnProperty('doPrime') ? subscription.doPrime : topicConfig.doPrime;
+
+      if (doPrime && (topicConfig.eventOnly || isSet(item.val))) {
+        scheduleCall(subscription, item.val, item.topic);
+      }
+    });
 
     return () => {
       removeSub(subscription);
@@ -253,7 +379,8 @@
    * @returns {*} - The current value or the default
    */
   function currentVal(topic, def) {
-    return valueOrDefault(store[topic], def);
+    const defToUse = isDefined(def) ? def : getTopicConfig(topic).default;
+    return valueOrDefault(store[topic], defToUse);
   }
 
   /**
@@ -280,6 +407,8 @@
   }
 
   return {
+    addTopic,
+    addTopics,
     clear,
     clearAll,
     configure,

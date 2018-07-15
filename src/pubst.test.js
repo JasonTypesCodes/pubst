@@ -68,6 +68,30 @@ describe('pubst', () => {
     it('returns null if value was not set and a default of null is provided', () => {
       expect(pubst.currentVal(TEST_TOPIC_1, null)).to.equal(null);
     });
+
+    it('returns topic default if value was not set and no default is provided', () => {
+      const myDefault = 'some default';
+
+      pubst.addTopic({
+        name: TEST_TOPIC_1,
+        default: myDefault
+      });
+
+      expect(pubst.currentVal(TEST_TOPIC_1)).to.equal(myDefault);
+    });
+
+    it('returns provided default if value was not set and topic was configured with a default', () => {
+      const myDefault = 'some default';
+      const topicDefault = 'topic default';
+
+      pubst.addTopic({
+        name: TEST_TOPIC_1,
+        default: topicDefault
+      });
+
+      expect(pubst.currentVal(TEST_TOPIC_1)).to.equal(topicDefault);
+      expect(pubst.currentVal(TEST_TOPIC_1, myDefault)).to.equal(myDefault);
+    });
   });
 
   describe('publish', () => {
@@ -86,6 +110,427 @@ describe('pubst', () => {
       expect(pubst.currentVal(TEST_TOPIC_1)).to.equal(payload2);
     });
   });
+
+  describe('topic config', () => {
+    describe('name', () => {
+      it('is required', () => {
+        let errorThrown = false;
+
+        try {
+          pubst.addTopic({});
+        } catch (e) {
+          errorThrown = true;
+        }
+
+        expect(errorThrown).to.be.true;
+      });
+    });
+
+    describe('default', () => {
+      it('is configurable', () => {
+        const handler = sinon.spy();
+        const defaultVal = 'DEFAULT VALUE';
+
+        pubst.addTopic({
+          name: TEST_TOPIC_1,
+          default: defaultVal,
+          doPrime: false
+        });
+
+        pubst.publish(TEST_TOPIC_1, 'SOME VALUE');
+
+        pubst.subscribe(TEST_TOPIC_1, handler);
+
+        pubst.clear(TEST_TOPIC_1);
+
+        clock.tick(1);
+
+        expect(handler).to.have.been.calledWith(defaultVal, TEST_TOPIC_1);
+      });
+
+      it('is off by default', () => {
+        const handler = sinon.spy();
+
+        pubst.addTopic({
+          name: TEST_TOPIC_1,
+          doPrime: true
+        });
+
+        pubst.subscribe(TEST_TOPIC_1, handler);
+
+        clock.tick(1);
+
+        expect(handler).not.to.have.been.called;
+      });
+
+      it('is sent again after a clear', () => {
+        const handler = sinon.spy();
+        const defaultVal = 'SOME DEFAULT';
+        const aValue = 'A real value';
+
+        pubst.addTopic({
+          name: TEST_TOPIC_1,
+          default: defaultVal,
+          doPrime: true
+        });
+
+        pubst.subscribe(TEST_TOPIC_1, handler);
+
+        clock.tick(1);
+
+        expect(handler).to.have.been.calledWith(defaultVal, TEST_TOPIC_1);
+
+        handler.resetHistory();
+
+        pubst.publish(TEST_TOPIC_1, aValue);
+
+        clock.tick(1);
+
+        expect(handler).to.have.been.calledWith(aValue, TEST_TOPIC_1);
+
+        handler.resetHistory();
+
+        pubst.clear(TEST_TOPIC_1);
+
+        clock.tick(1);
+
+        expect(handler).to.have.been.calledWith(defaultVal, TEST_TOPIC_1);
+      });
+
+      it('can be overriden', () => {
+        const handler1 = sinon.spy();
+        const handler2 = sinon.spy();
+        const handler3 = sinon.spy();
+
+        const topicDefault = 'topic default';
+        const sub2Default = 'sub 2 default';
+        const sub3Default = 'sub 3 default';
+
+        const someValue = 'some value';
+
+        pubst.addTopic({
+          name: TEST_TOPIC_1,
+          default: topicDefault,
+          doPrime: false
+        });
+
+        pubst.subscribe(TEST_TOPIC_1, handler1);
+        pubst.subscribe(TEST_TOPIC_1, handler2, sub2Default);
+        pubst.subscribe(TEST_TOPIC_1, {
+          handler: handler3,
+          default: sub3Default
+        });
+
+        pubst.publish(TEST_TOPIC_1, someValue);
+
+        clock.tick(1);
+
+        expect(handler1).to.have.been.calledWith(someValue, TEST_TOPIC_1);
+        expect(handler2).to.have.been.calledWith(someValue, TEST_TOPIC_1);
+        expect(handler3).to.have.been.calledWith(someValue, TEST_TOPIC_1);
+
+        handler1.resetHistory();
+        handler2.resetHistory();
+        handler3.resetHistory();
+
+        pubst.clear(TEST_TOPIC_1);
+
+        clock.tick(1);
+
+        expect(handler1).to.have.been.calledWith(topicDefault, TEST_TOPIC_1);
+        expect(handler2).to.have.been.calledWith(sub2Default, TEST_TOPIC_1);
+        expect(handler3).to.have.been.calledWith(sub3Default, TEST_TOPIC_1);
+      });
+    });
+
+    describe('eventOnly', () => {
+      it('creates topics that do not publish a payload', () => {
+        const handler = sinon.spy();
+
+        pubst.addTopic({
+          name: TEST_TOPIC_1,
+          eventOnly: true,
+          doPrime: true
+        });
+
+        pubst.subscribe(TEST_TOPIC_1, handler);
+
+        clock.tick(1);
+
+        expect(handler).to.have.been.calledWith(TEST_TOPIC_1);
+
+        handler.resetHistory();
+
+        pubst.publish(TEST_TOPIC_1, 'some ignored payload');
+
+        clock.tick(1);
+        expect(handler).to.have.been.calledWith(TEST_TOPIC_1);
+        handler.resetHistory();
+
+        pubst.publish(TEST_TOPIC_1);
+        pubst.publish(TEST_TOPIC_1);
+        pubst.publish(TEST_TOPIC_1);
+
+        clock.tick(1);
+        expect(handler).to.have.been.calledThrice;
+      });
+
+      it('is off by default', () => {
+        const payload = 'a payload';
+        const handler = sinon.spy();
+
+        pubst.addTopic({
+          name: TEST_TOPIC_1,
+          doPrime: false
+        });
+
+        pubst.subscribe(TEST_TOPIC_1, handler);
+
+        pubst.publish(TEST_TOPIC_1, payload);
+
+        clock.tick(1);
+
+        expect(handler).to.have.been.calledOnce;
+        expect(handler).to.have.been.calledWith(payload);
+
+        handler.resetHistory();
+
+        pubst.publish(TEST_TOPIC_1, payload);
+
+        clock.tick(1);
+
+        expect(handler).not.to.have.been.called;
+      });
+    });
+
+    describe('doPrime', () => {
+      it('sends current value to new subscribers when on', () => {
+        pubst.addTopics([
+          {
+            name: TEST_TOPIC_1,
+            doPrime: true
+          },
+          {
+            name: TEST_TOPIC_2,
+            doPrime: false
+          }
+        ]);
+
+        const testPayload = 'some test payload';
+
+        pubst.publish(TEST_TOPIC_1, testPayload);
+        pubst.publish(TEST_TOPIC_2, testPayload);
+
+        const handler1 = sinon.spy();
+        const handler2 = sinon.spy();
+
+        pubst.subscribe(TEST_TOPIC_1, handler1);
+        pubst.subscribe(TEST_TOPIC_2, handler2);
+
+        clock.tick(1);
+
+        expect(handler1).to.have.been.calledOnce;
+        expect(handler1).to.have.been.calledWith(testPayload);
+
+        expect(handler2).not.to.have.been.called;
+      });
+
+      it('can be overriden', () => {
+        pubst.addTopics([
+          {
+            name: TEST_TOPIC_1,
+            doPrime: true
+          },
+          {
+            name: TEST_TOPIC_2,
+            doPrime: false
+          }
+        ]);
+
+        const testPayload = 'some test payload';
+
+        pubst.publish(TEST_TOPIC_1, testPayload);
+        pubst.publish(TEST_TOPIC_2, testPayload);
+
+        const handler1 = sinon.spy();
+        const handler2 = sinon.spy();
+
+        pubst.subscribe(TEST_TOPIC_1, {
+          doPrime: false,
+          handler: handler1
+        });
+        pubst.subscribe(TEST_TOPIC_2, {
+          doPrime: true,
+          handler: handler2
+        });
+
+        clock.tick(1);
+
+        expect(handler1).not.to.have.been.called;
+
+        expect(handler2).to.have.been.calledOnce;
+        expect(handler2).to.have.been.calledWith(testPayload);
+      });
+
+      it('is on by default', () => {
+        pubst.addTopics([
+          {
+            name: TEST_TOPIC_1
+          }
+        ]);
+
+        const testPayload = 'some test payload';
+
+        pubst.publish(TEST_TOPIC_1, testPayload);
+
+        const handler = sinon.spy();
+
+        pubst.subscribe(TEST_TOPIC_1, handler);
+
+        clock.tick(1);
+
+        expect(handler).to.have.been.calledOnce;
+        expect(handler).to.have.been.calledWith(testPayload);
+      });
+
+      it('sends default value if no other value is available', () => {
+        const defaultPayload = 'some test payload';
+
+        pubst.addTopics([
+          {
+            name: TEST_TOPIC_1,
+            doPrime: true,
+            default: defaultPayload
+          }
+        ]);
+        const handler = sinon.spy();
+
+        pubst.subscribe(TEST_TOPIC_1, handler);
+
+        clock.tick(1);
+
+        expect(handler).to.have.been.calledOnce;
+        expect(handler).to.have.been.calledWith(defaultPayload);
+      });
+    });
+
+    describe('allowRepeats', () => {
+      it('calls subs when the value does not change', () => {
+        pubst.addTopics([
+          {
+            name: TEST_TOPIC_1,
+            allowRepeats: true
+          },
+          {
+            name: TEST_TOPIC_2,
+            allowRepeats: false
+          }
+        ]);
+
+        const testPayload = 'some test payload';
+
+        const handler1 = sinon.spy();
+        const handler2 = sinon.spy();
+
+        pubst.subscribe(TEST_TOPIC_1, handler1);
+        pubst.subscribe(TEST_TOPIC_2, handler2);
+
+        clock.tick(1);
+
+        expect(handler1).not.to.have.been.called;
+        expect(handler2).not.to.have.been.called;
+
+        pubst.publish(TEST_TOPIC_1, testPayload);
+        pubst.publish(TEST_TOPIC_2, testPayload);
+
+        clock.tick(1);
+
+        expect(handler1).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
+        expect(handler2).to.have.been.calledWith(testPayload, TEST_TOPIC_2);
+
+        handler1.resetHistory();
+        handler2.resetHistory();
+
+        pubst.publish(TEST_TOPIC_1, testPayload);
+        pubst.publish(TEST_TOPIC_2, testPayload);
+
+        clock.tick(1);
+
+        expect(handler1).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
+        expect(handler2).not.to.have.been.called;
+      });
+
+      it('is off by default', () => {
+        pubst.addTopic({
+          name: TEST_TOPIC_1
+        });
+
+        const testPayload = 'some test payload';
+
+        const handler = sinon.spy();
+
+        pubst.subscribe(TEST_TOPIC_1, handler);
+
+        pubst.publish(TEST_TOPIC_1, testPayload);
+        clock.tick(1);
+
+        pubst.publish(TEST_TOPIC_1, testPayload);
+        pubst.publish(TEST_TOPIC_1, testPayload);
+        pubst.publish(TEST_TOPIC_1, testPayload);
+        pubst.publish(TEST_TOPIC_1, testPayload);
+        pubst.publish(TEST_TOPIC_1, testPayload);
+        clock.tick(1);
+
+        expect(handler).to.have.been.calledOnceWith(testPayload, TEST_TOPIC_1);
+
+        handler.resetHistory();
+
+        pubst.publish(TEST_TOPIC_1, 'something else');
+
+        clock.tick(1);
+
+        expect(handler).to.have.been.calledOnceWith('something else', TEST_TOPIC_1);
+
+        handler.resetHistory();
+
+        pubst.publish(TEST_TOPIC_1, testPayload);
+        clock.tick(1);
+        pubst.publish(TEST_TOPIC_1, testPayload);
+        pubst.publish(TEST_TOPIC_1, testPayload);
+
+        clock.tick(1);
+
+        expect(handler).to.have.been.calledOnceWith(testPayload, TEST_TOPIC_1);
+      });
+
+      it('can be overriden', () => {
+        pubst.addTopic({
+          name: TEST_TOPIC_1,
+          allowRepeats: false
+        });
+
+        const testPayload = 'some test payload';
+
+        const handler = sinon.spy();
+
+        pubst.subscribe(TEST_TOPIC_1, {
+          allowRepeats: true,
+          handler
+        });
+
+        pubst.publish(TEST_TOPIC_1, testPayload);
+        clock.tick(1);
+
+        pubst.publish(TEST_TOPIC_1, testPayload);
+        pubst.publish(TEST_TOPIC_1, testPayload);
+        clock.tick(1);
+
+        expect(handler).to.have.been.calledThrice;
+        expect(handler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
+      });
+    });
+  });
+
 
   describe('publish & subscribe', () => {
     it('calls the subscriber if the topic already has a set value', () => {
