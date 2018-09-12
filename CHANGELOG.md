@@ -1,3 +1,6 @@
+## v0.3.0 - Sep 11 2018
+  + Adds topic configuration
+
 ## v0.2.1 - Apr 27 2018
   + Adds documentation
 
