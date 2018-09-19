@@ -529,8 +529,100 @@ describe('pubst', () => {
         expect(handler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
       });
     });
-  });
 
+    describe('validator', () => {
+      it('allows all values by default', () => {
+        pubst.addTopics([
+          {
+            name: TEST_TOPIC_1,
+            doPrime: false
+          }
+        ]);
+
+        const handler1 = sinon.spy();
+
+        pubst.subscribe(TEST_TOPIC_1, handler1);
+
+        pubst.publish(TEST_TOPIC_1, 'Hello');
+        pubst.publish(TEST_TOPIC_1, 12);
+
+        clock.tick(1);
+
+        expect(handler1).to.have.been.calledWith('Hello', TEST_TOPIC_1);
+        expect(handler1).to.have.been.calledWith(12, TEST_TOPIC_1);
+      });
+
+      it('fails when valid is false', () => {
+        pubst.addTopic({
+          name: TEST_TOPIC_1,
+          doPrime: false,
+          validator: () => ({valid: false, messages: ['message 1', 'message 2']})
+        });
+
+        const handler1 = sinon.spy();
+
+        pubst.subscribe(TEST_TOPIC_1, handler1);
+
+        try {
+          pubst.publish(TEST_TOPIC_1, 'Hello');
+          throw new Error('This publish should have thrown');
+        } catch (e) {
+          const {message} = e;
+          expect(message).to.contain('message 1');
+          expect(message).to.contain('message 2');
+          expect(message).to.contain(TEST_TOPIC_1);
+          expect(message).to.contain('Hello');
+        }
+
+        clock.tick(1);
+
+        expect(handler1).not.to.have.been.called;
+      });
+
+      it('fails when result is falsey', () => {
+        pubst.addTopic({
+          name: TEST_TOPIC_1,
+          doPrime: false,
+          validator: () => false
+        });
+
+        const handler1 = sinon.spy();
+
+        pubst.subscribe(TEST_TOPIC_1, handler1);
+
+        try {
+          pubst.publish(TEST_TOPIC_1, 'Hello');
+          throw new Error('This publish should have thrown');
+        } catch (e) {
+          const {message} = e;
+          expect(message).to.contain(TEST_TOPIC_1);
+          expect(message).to.contain('Hello');
+        }
+
+        clock.tick(1);
+
+        expect(handler1).not.to.have.been.called;
+      });
+
+      it('allows payloads when valid is true', () => {
+        pubst.addTopic({
+          name: TEST_TOPIC_1,
+          doPrime: false,
+          validator: () => ({valid: true})
+        });
+
+        const handler1 = sinon.spy();
+
+        pubst.subscribe(TEST_TOPIC_1, handler1);
+
+        pubst.publish(TEST_TOPIC_1, 'Hello');
+
+        clock.tick(1);
+
+        expect(handler1).to.have.been.calledOnceWith('Hello', TEST_TOPIC_1);
+      });
+    });
+  });
 
   describe('publish & subscribe', () => {
     it('calls the subscriber if the topic already has a set value', () => {
