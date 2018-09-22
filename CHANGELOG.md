@@ -1,3 +1,6 @@
+## v0.4.0 - Sep 21 2018
+  + Adds `validator` option to topic configuration.
+
 ## v0.3.0 - Sep 11 2018
   + Adds topic configuration
 
