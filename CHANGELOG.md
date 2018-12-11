@@ -1,3 +1,6 @@
+## v0.4.1 - Dec 10 2018
+  + Dependency updates to address https://github.com/dominictarr/event-stream/issues/116
+
 ## v0.4.0 - Sep 21 2018
   + Adds `validator` option to topic configuration.
 
