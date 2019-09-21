@@ -1,3 +1,8 @@
+## v0.4.2 - Sep 20 2019
+  + Dependency updates.
+  + Fixes new linting errors.
+  + New repository url.
+
 ## v0.4.1 - Dec 10 2018
   + Dependency updates to address https://github.com/dominictarr/event-stream/issues/116
 
