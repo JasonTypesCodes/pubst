@@ -1,6 +1,6 @@
 # Pubst
 
-[![Build Status](https://travis-ci.org/VoltiSubito/pubst.svg?branch=main)](https://travis-ci.org/VoltiSubito/pubst)
+[![Build Status](https://travis-ci.org/JasonTypesCodes/pubst.svg?branch=main)](https://travis-ci.org/JasonTypesCodes/pubst)
 
 Pubst is a slightly opinionated pub/sub library for JavaScript.
 
