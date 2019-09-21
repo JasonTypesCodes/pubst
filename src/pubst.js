@@ -48,6 +48,10 @@
     }
   }
 
+  function hasOwnProperty(item, key) {
+    return Object.prototype.hasOwnProperty.call(item, key);
+  }
+
   /**
    * @summary Set global configuration.
    *
@@ -65,7 +69,7 @@
    */
   function configure(userConfig = {}) {
     for (const key in userConfig) {
-      if (config.hasOwnProperty(key)) {
+      if (hasOwnProperty(config, key)) {
         config[key] = userConfig[key];
       }
     }
@@ -105,7 +109,7 @@
     }
 
     for (const key in extensions) {
-      if (result.hasOwnProperty(key)) {
+      if (hasOwnProperty(result, key)) {
         result[key] = extensions[key];
       }
     }
@@ -277,8 +281,8 @@ ${buildValidationErrorMessage(topic.name, defaultValidationResult.messages, topi
     const topicConfig = getTopicConfig(topic);
 
     const defVal = typeof sub.default === 'undefined' ? topicConfig.default : sub.default;
-    const eventOnly = sub.hasOwnProperty('eventOnly') ? sub.eventOnly : topicConfig.eventOnly;
-    const allowRepeats = sub.hasOwnProperty('allowRepeats') ? sub.allowRepeats : topicConfig.allowRepeats;
+    const eventOnly = hasOwnProperty(sub, 'eventOnly') ? sub.eventOnly : topicConfig.eventOnly;
+    const allowRepeats = hasOwnProperty(sub, 'allowRepeats') ? sub.allowRepeats : topicConfig.allowRepeats;
     const value = eventOnly ? topic : valueOrDefault(payload, defVal);
 
     if (eventOnly || allowRepeats || sub.lastVal !== value || sub.lastTopic !== topic) {
@@ -402,7 +406,7 @@ ${buildValidationErrorMessage(topic.name, defaultValidationResult.messages, topi
 
     stored.forEach(item => {
       const topicConfig = getTopicConfig(item.topic);
-      const doPrime = subscription.hasOwnProperty('doPrime') ? subscription.doPrime : topicConfig.doPrime;
+      const doPrime = hasOwnProperty(subscription, 'doPrime') ? subscription.doPrime : topicConfig.doPrime;
 
       if (doPrime && (topicConfig.eventOnly || isSet(item.val))) {
         scheduleCall(subscription, item.val, item.topic);
@@ -437,7 +441,7 @@ ${buildValidationErrorMessage(topic.name, defaultValidationResult.messages, topi
    * @description Clears the topic by publishing a `null` to it.
    */
   function clear(topic) {
-    if (store.hasOwnProperty(topic)) {
+    if (hasOwnProperty(store, topic)) {
       publish(topic, null);
     }
   }
