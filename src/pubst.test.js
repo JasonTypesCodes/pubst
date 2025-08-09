@@ -1,4 +1,4 @@
-const clearRequire = require('clear-require');
+const clearModule = require('clear-module');
 const chai = require('chai');
 
 chai.use(require('sinon-chai'));
@@ -21,7 +21,7 @@ describe('pubst', () => {
 
   afterEach(() => {
     clock.restore();
-    clearRequire('./pubst');
+    clearModule('./pubst');
   });
 
   describe('currentVal', () => {
