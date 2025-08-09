@@ -1,6 +1,6 @@
 # Pubst
 
-[![Build Status](https://travis-ci.org/JasonTypesCodes/pubst.svg?branch=main)](https://travis-ci.org/JasonTypesCodes/pubst)
+[![Verify](https://github.com/JasonTypesCodes/pubst/actions/workflows/verify.yml/badge.svg)](https://github.com/JasonTypesCodes/pubst/actions/workflows/verify.yml)
 
 Pubst is a slightly opinionated pub/sub library for JavaScript.
 
