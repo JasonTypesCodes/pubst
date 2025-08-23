@@ -1,5 +1,5 @@
-const clearModule = require('clear-module');
 const chai = require('chai');
+const Pubst = require('./pubst').default;
 
 chai.use(require('sinon-chai'));
 
@@ -15,13 +15,11 @@ describe('pubst', () => {
 
   beforeEach(() => {
     clock = sinon.useFakeTimers();
-    pubst = require('./pubst');
-    pubst.configure({showWarnings: false});
+    pubst = new Pubst({showWarnings: false});
   });
 
   afterEach(() => {
     clock.restore();
-    clearModule('./pubst');
   });
 
   describe('currentVal', () => {
