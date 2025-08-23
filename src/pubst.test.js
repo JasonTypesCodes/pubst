@@ -1,10 +1,11 @@
-const chai = require('chai');
-const Pubst = require('./pubst').default;
+import * as chai from 'chai';
+import Pubst from './pubst.js';
+import sinonChai from 'sinon-chai';
+import sinon from 'sinon';
 
-chai.use(require('sinon-chai'));
+chai.use(sinonChai);
 
 const expect = chai.expect;
-const sinon = require('sinon');
 
 describe('pubst', () => {
   let pubst;

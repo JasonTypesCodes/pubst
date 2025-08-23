@@ -3,7 +3,7 @@
   "version": "0.5.0",
   "description": "A slightly opinionated pub/sub event emitter for JavaScript.",
   "main": "src/pubst.js",
-  "--type": "module",
+  "type": "module",
   "scripts": {
     "bbbuild": "babel src -d lib",
     "clean": "shx rm -rf lib doc",
