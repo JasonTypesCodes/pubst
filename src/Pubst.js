@@ -15,10 +15,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- * @file pubst.js
- * @module pubst
+ * @file Pubst.js
+ * @module Pubst
  * @author Jason Schindler
- * @copyright Jason Schindler 2017-2018
+ * @copyright Jason Schindler 2017-2025
  * @description A slightly opinionated pub/sub library for JavaScript.
  */
 
@@ -129,7 +129,7 @@ export default class Pubst {
   /**
    * @summary Set global configuration.
    *
-   * @alias module:pubst.configure
+   * @alias module:Pubst.configure
    * @param {Object} config - Your configuration
    *
    * @description
@@ -156,7 +156,7 @@ export default class Pubst {
   /**
    * @summary Configure a new topic.
    *
-   * @alias module:pubst.addTopic
+   * @alias module:Pubst.addTopic
    * @param {Object} newTopicConfig - Topic configuration
    *
    * @description
@@ -224,7 +224,7 @@ export default class Pubst {
   /**
    * @summary Configure new topics.
    *
-   * @alias module:pubst.addTopics
+   * @alias module:Pubst.addTopics
    * @param {Array<Object>} newTopicConfigs - Topic configurations
    *
    * @description
@@ -299,7 +299,7 @@ export default class Pubst {
   /**
    * @summary Publish to a topic
    *
-   * @alias module:pubst.publish
+   * @alias module:Pubst.publish
    * @param {string} topic - The topic to publish to
    * @param {*} payload The payload to publish
    */
@@ -334,7 +334,7 @@ export default class Pubst {
   /**
    * @summary Subscribe to one or more topics
    *
-   * @alias module:pubst.subscribe
+   * @alias module:Pubst.subscribe
    * @param {string|RegExp} topic - The topic to receive updates for
    * @param {Function|Object} handler - Either your handler function or
    *                                    a subscription configuration object
@@ -423,7 +423,7 @@ export default class Pubst {
   /**
    * @summary Get the current value of a topic.
    *
-   * @alias module:pubst.currentVal
+   * @alias module:Pubst.currentVal
    * @param {string} topic - The topic to get the value of.
    * @param {*} default - (Optional) a value to return if the topic is
    *                      empty.
@@ -437,7 +437,7 @@ export default class Pubst {
   /**
    * @summary Clears a given topic.
    *
-   * @alias module:pubst.clear
+   * @alias module:Pubst.clear
    * @param {string} topic - The topic to clear
    *
    * @description Clears the topic by publishing a `null` to it.
@@ -451,7 +451,7 @@ export default class Pubst {
   /**
    * @summary Clears all known topics.
    *
-   * @alias module:pubst.clearAll
+   * @alias module:Pubst.clearAll
    */
   clearAll() {
     Object.keys(this.#store).forEach(topic => {

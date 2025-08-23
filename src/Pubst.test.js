@@ -1,5 +1,5 @@
 import * as chai from 'chai';
-import Pubst from './pubst.js';
+import Pubst from './Pubst.js';
 import sinonChai from 'sinon-chai';
 import sinon from 'sinon';
 
