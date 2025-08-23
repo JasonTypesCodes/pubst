@@ -117,7 +117,6 @@ export default class Pubst {
 
   #warn(...messages) {
     if (this.#config.showWarnings) {
-      // eslint-disable-next-line no-console
       console.warn('WARNING:', ...messages);
     }
   }
@@ -211,7 +210,7 @@ export default class Pubst {
     if (isDefined(topic.default)) {
       const defaultValidationResult = topic.validator(topic.default);
       if (!defaultValidationResult.valid) {
-        warn(`'${topic.name}' has been configured with a default value that does not pass validation.
+        this.warn(`'${topic.name}' has been configured with a default value that does not pass validation.
   Complete message:
   ${buildValidationErrorMessage(topic.name, defaultValidationResult.messages, topic.default)}`);
       }

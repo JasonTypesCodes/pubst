@@ -117,6 +117,7 @@ describe('pubst', () => {
 
         try {
           pubst.addTopic({});
+        // eslint-disable-next-line no-unused-vars
         } catch (e) {
           errorThrown = true;
         }
