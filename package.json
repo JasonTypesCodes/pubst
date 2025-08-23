@@ -5,11 +5,10 @@
   "main": "src/pubst.js",
   "type": "module",
   "scripts": {
-    "bbbuild": "babel src -d lib",
-    "clean": "shx rm -rf lib doc",
+    "clean": "shx rm -rf doc",
     "build-docs": "jsdoc ./src -d ./doc",
     "lint": "eslint ./src",
-    "ppprepare": "npm-run-all clean build-docs build",
+    "prepare": "npm-run-all clean build-docs",
     "test": "mocha ./src/*.test.js",
     "verify": "npm-run-all lint test"
   },
@@ -35,8 +34,6 @@
   },
   "homepage": "https://github.com/JasonTypesCodes/pubst#readme",
   "devDependencies": {
-    "babel-cli": "6.26.0",
-    "babel-preset-env": "1.7.0",
     "chai": "4.5.0",
     "eslint": "8.57.0",
     "jsdoc": "3.6.6",
