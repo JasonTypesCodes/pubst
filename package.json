@@ -2,7 +2,7 @@
   "name": "pubst",
   "version": "0.5.0",
   "description": "A slightly opinionated pub/sub event emitter for JavaScript.",
-  "main": "src/pubst.js",
+  "main": "src/Pubst.js",
   "type": "module",
   "scripts": {
     "clean": "shx rm -rf doc",
