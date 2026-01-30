@@ -4,8 +4,7 @@
 
 Pubst is a slightly opinionated pub/sub library for JavaScript.
 
-Like many other JavaScript pub/sub libraries, Pubst acts as a single central broker for any number of topics.
-You can publish to a topic in one component/class/module and any other component/class/module that has subscribed to that topic will receive a call with the updated payload.
+Each Pubst instance acts as a single broker for any number of topics.  Any number of modules sharing a single instance of Pubst can exchange data through it's publish and subscribe mechanisms
 
 Pubst has a few other features worth noting:
 
@@ -19,11 +18,26 @@ Pubst has a few other features worth noting:
 
 ## Basic Usage
 
-While it isn't necessarily required, it is a good idea to configure the topics you are going to use.
+While it isn't necessarily required, it is a good idea to configure your Pubst instance and the topics you will use in a single file and then export the instance so that other modules can consume them.  This keeps your configuration and available topics together.
+
+```js
+// pubst-broker.js
+import Pubst from 'pubst';
+
+const pubst = new Pubst();
+
+pubst.addTopic({
+  name: TOPICS.FAVORITE_COLOR,
+  doPrime: false
+});
+
+export {pubst};
+
+```
 
 ```js
 // File1.js
-const pubst = require('pubst');
+import {pubst} from './pubst-broker.js';
 
 pubst.addTopic({
   name: 'NAME',
@@ -33,7 +47,7 @@ pubst.addTopic({
 
 ```js
 // File2.js
-const pubst = require('pubst');
+import {pubst} from './pubst-broker.js';
 
 pubst.subscribe('NAME', name => {
   console.log(`Hello ${name}!`);
@@ -48,8 +62,8 @@ When another module publishes 'Jill' on the 'NAME' topic, the subscriber is call
 
 
 ```js
-// File2.js
-const pubst = require('pubst');
+// File3.js
+import {pubst} from './pubst-broker.js';
 
 pubst.publish('NAME', 'Jill');
 ```
@@ -73,7 +87,7 @@ A subscriber is free to override the default value for their topics.
 
 ### `configure(configOptions)`
 
-Sets global Pubst configuration.
+Sets Pubst configuration.
 
 #### Available options:
 
