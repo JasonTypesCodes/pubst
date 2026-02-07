@@ -15,47 +15,125 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- * @file pubst.js
- * @module pubst
+ * @file Pubst.js
  * @author Jason Schindler
- * @copyright Jason Schindler 2017-2018
+ * @copyright Jason Schindler 2017-2025
  * @description A slightly opinionated pub/sub library for JavaScript.
  */
 
-(function (root, factory) {
-  if (typeof define === 'function' && define.amd) {
-    // AMD. Register as an anonymous module.
-    define([], factory);
-  } else if (typeof module === 'object' && module.exports) {
-    // Node. Does not work with strict CommonJS, but
-    // only CommonJS-like environments that support module.exports,
-    // like Node.
-    module.exports = factory();
-  } else {
-    // Browser globals (root is window)
-    root.pubst = factory();
+function hasOwnProperty(item, key) {
+  return Object.prototype.hasOwnProperty.call(item, key);
 }
-}(typeof self !== 'undefined' ? self : this, function () {
 
-  const config = {
+const VALIDATION_SUCCESS = {
+  valid: true,
+  messages: []
+};
+
+function everythingIsAwesome() {
+  return VALIDATION_SUCCESS;
+}
+
+const DEFAULT_TOPIC_CONFIG = {
+  name: '',
+  default: undefined,
+  eventOnly: false,
+  doPrime: true,
+  allowRepeats: false,
+  validator: everythingIsAwesome
+};
+
+const ALLOWED_SUB_PROPS = [
+  'topic',
+  'handler',
+  'default',
+  'doPrime',
+  'allowRepeats'
+];
+
+function buildConfig(base, extensions) {
+  const result = {};
+
+  for (const key in base) {
+    result[key] = base[key];
+  }
+
+  for (const key in extensions) {
+    if (hasOwnProperty(result, key)) {
+      result[key] = extensions[key];
+    }
+  }
+
+  return result;
+}
+
+function buildValidationErrorMessage(topicName, validationMessages, payload) {
+  let messages = '';
+  if (Array.isArray(validationMessages) && validationMessages.length > 0) {
+    const s = validationMessages.length === 1 ? '' : 's';
+    messages = `Message${s}:\n  ${validationMessages.join('\n  ')}`;
+  }
+
+  const payloadString = 'Received Payload:\n  ' + JSON.stringify(payload, null, 2);
+
+  return `Validation failed for topic '${topicName}'.\n ${messages}\n ${payloadString}`;
+}
+
+function isUndefined(input) {
+  return typeof input === 'undefined';
+}
+
+function isDefined(input) {
+  return !isUndefined(input);
+}
+
+function isNotSet(item) {
+  return item === null || isUndefined(item);
+}
+
+function isSet(item) {
+  return !isNotSet(item);
+}
+
+function valueOrDefault(value, def) {
+  if(isNotSet(value) && isDefined(def)){
+    return def;
+  }
+
+  return value;
+}
+
+/**
+ * @summary A slightly opinionated pub/sub utility for Javascript
+ */
+class Pubst {
+
+  #config = {
     showWarnings: true
   };
 
-  function warn(...messages) {
-    if (config.showWarnings) {
-      // eslint-disable-next-line no-console
+  #store = {};
+  #stringSubs = {};
+  #regexSubs = [];
+  #topics = {};
+
+  #warn(...messages) {
+    if (this.#config.showWarnings) {
       console.warn('WARNING:', ...messages);
     }
   }
 
-  function hasOwnProperty(item, key) {
-    return Object.prototype.hasOwnProperty.call(item, key);
+  /**
+   * @summary Creates a new Pubst instance.
+   * @param {Object} userConfig  - (Optional) - Configuration for this instance
+   */
+  constructor(userConfig = {}) {
+    this.configure(userConfig);
   }
 
   /**
-   * @summary Set global configuration.
+   * @summary Set Pubst configuration.
    *
-   * @alias module:pubst.configure
    * @param {Object} config - Your configuration
    *
    * @description
@@ -67,72 +145,21 @@
    *  </ul>
    * </p>
    */
-  function configure(userConfig = {}) {
+  configure(userConfig = {}) {
     for (const key in userConfig) {
-      if (hasOwnProperty(config, key)) {
-        config[key] = userConfig[key];
+      if (hasOwnProperty(this.#config, key)) {
+        this.#config[key] = userConfig[key];
       }
     }
 
     if (Array.isArray(userConfig.topics)) {
-      addTopics(userConfig.topics);
+      this.addTopics(userConfig.topics);
     }
-  }
-
-  const store = {};
-  const stringSubs = {};
-  let regexSubs = [];
-  const topics = {};
-
-  const DEFAULT_TOPIC_CONFIG = {
-    name: '',
-    default: undefined,
-    eventOnly: false,
-    doPrime: true,
-    allowRepeats: false,
-    validator: () => ({valid: true, messages: []})
-  };
-
-  const ALLOWED_SUB_PROPS = [
-    'topic',
-    'handler',
-    'default',
-    'doPrime',
-    'allowRepeats'
-  ];
-
-  function buildConfig(base, extensions) {
-    const result = {};
-
-    for (const key in base) {
-      result[key] = base[key];
-    }
-
-    for (const key in extensions) {
-      if (hasOwnProperty(result, key)) {
-        result[key] = extensions[key];
-      }
-    }
-
-    return result;
-  }
-
-  function buildValidationErrorMessage(topicName, validationMessages, payload) {
-    let messages = '';
-    if (Array.isArray(validationMessages) && validationMessages.length > 0) {
-      const s = validationMessages.length === 1 ? '' : 's';
-      messages = `Message${s}:\n  ${validationMessages.join('\n  ')}`;
-    }
-
-    const payloadString = 'Received Payload:\n  ' + JSON.stringify(payload, null, 2);
-
-    return `Validation failed for topic '${topicName}'.\n ${messages}\n ${payloadString}`;
   }
 
   /**
    * @summary Configure a new topic.
    *
-   * @alias module:pubst.addTopic
    * @param {Object} newTopicConfig - Topic configuration
    *
    * @description
@@ -173,34 +200,33 @@
    *  </ul>
    * </p>
    */
-  function addTopic(newTopicConfig) {
+  addTopic(newTopicConfig) {
     const topic = buildConfig(DEFAULT_TOPIC_CONFIG, newTopicConfig);
 
     if (!topic.name) {
       throw new Error('Topics must have a name.');
     }
 
-    if (topics[topic.name]) {
-      warn(`The '${topic.name}' topic has already been configured.  The previous configuration will be overwritten.`);
+    if (this.#topics[topic.name]) {
+      this.warn(`The '${topic.name}' topic has already been configured.  The previous configuration will be overwritten.`);
     }
 
     if (isDefined(topic.default)) {
       const defaultValidationResult = topic.validator(topic.default);
       if (!defaultValidationResult.valid) {
-        warn(`'${topic.name}' has been configured with a default value that does not pass validation.
-Complete message:
-${buildValidationErrorMessage(topic.name, defaultValidationResult.messages, topic.default)}`);
+        this.warn(`'${topic.name}' has been configured with a default value that does not pass validation.
+  Complete message:
+  ${buildValidationErrorMessage(topic.name, defaultValidationResult.messages, topic.default)}`);
       }
     }
 
-    topics[topic.name] = topic;
+    this.#topics[topic.name] = topic;
 
   }
 
   /**
    * @summary Configure new topics.
    *
-   * @alias module:pubst.addTopics
    * @param {Array<Object>} newTopicConfigs - Topic configurations
    *
    * @description
@@ -208,77 +234,55 @@ ${buildValidationErrorMessage(topic.name, defaultValidationResult.messages, topi
    * Allows you to configure new topics.  This will call `addTopic` with each item passed.
    * For available options, see `addTopic`.
    */
-  function addTopics(topics) {
-    topics.forEach(addTopic);
+  addTopics(topics) {
+    topics.forEach(topic => {
+      this.addTopic(topic);
+    });
   }
 
-  function getStringSubsFor(topic) {
-    return Array.isArray(stringSubs[topic]) ? stringSubs[topic] : [];
+  #getStringSubsFor(topic) {
+    return Array.isArray(this.#stringSubs[topic]) ? this.#stringSubs[topic] : [];
   }
 
-  function getRegexSubsFor(topic) {
-    return regexSubs.filter(sub => Boolean(topic.match(sub.topic)));
+  #getRegexSubsFor(topic) {
+    return this.#regexSubs.filter(sub => Boolean(topic.match(sub.topic)));
   }
 
-  function addSub(subscriber) {
+  #addSub(subscriber) {
     if (typeof subscriber.topic === 'string') {
-      if (!topics[subscriber.topic]) {
-        warn(`Adding a subscriber to non-configured topic '${subscriber.topic}'`);
+      if (!this.#topics[subscriber.topic]) {
+        this.#warn(`Adding a subscriber to non-configured topic '${subscriber.topic}'`);
       }
-      stringSubs[subscriber.topic] = getStringSubsFor(subscriber.topic).concat(subscriber);
+      this.#stringSubs[subscriber.topic] = this.#getStringSubsFor(subscriber.topic).concat(subscriber);
     } else if (subscriber.topic instanceof RegExp) {
-      const matchCount = Object.keys(topics).filter(topic => topic.match(subscriber.topic)).length;
+      const matchCount = Object.keys(this.#topics).filter(topic => topic.match(subscriber.topic)).length;
       if (matchCount === 0) {
-        warn(`Adding a RegExp subscriber that matches no configured topics.`);
+        this.#warn(`Adding a RegExp subscriber that matches no configured topics.`);
       }
-      regexSubs.push(subscriber);
+      this.#regexSubs.push(subscriber);
     } else {
       throw new Error('Unable to add subscriber.  Topic is not a string or a RegExp');
     }
   }
 
-  function removeSub(subscriber) {
+  #removeSub(subscriber) {
     if (typeof subscriber.topic === 'string') {
-      stringSubs[subscriber.topic] = getStringSubsFor(subscriber.topic).filter(sub => sub !== subscriber);
+      this.#stringSubs[subscriber.topic] = this.#getStringSubsFor(subscriber.topic).filter(sub => sub !== subscriber);
     } else if (subscriber.topic instanceof RegExp) {
-      regexSubs = regexSubs.filter(sub => sub !== subscriber);
+      this.#regexSubs = this.#regexSubs.filter(sub => sub !== subscriber);
     }
   }
 
-  function allSubsFor(topic) {
-    return getStringSubsFor(topic).concat(getRegexSubsFor(topic));
+  #allSubsFor(topic) {
+    return this.#getStringSubsFor(topic).concat(this.#getRegexSubsFor(topic));
   }
 
-  function isUndefined(input) {
-    return typeof input === 'undefined';
+  #getTopicConfig(topic) {
+    return this.#topics[topic] || buildConfig(DEFAULT_TOPIC_CONFIG, {name: topic});
   }
 
-  function isDefined(input) {
-    return !isUndefined(input);
-  }
-
-  function isNotSet(item) {
-    return item === null || isUndefined(item);
-  }
-
-  function isSet(item) {
-    return !isNotSet(item);
-  }
-
-  function valueOrDefault(value, def) {
-    if(isNotSet(value) && isDefined(def)){
-      return def;
-    }
-
-    return value;
-  }
-
-  function getTopicConfig(topic) {
-    return topics[topic] || buildConfig(DEFAULT_TOPIC_CONFIG, {name: topic});
-  }
-
-  function scheduleCall(sub, payload, topic) {
-    const topicConfig = getTopicConfig(topic);
+  #scheduleCall(sub, payload, topic) {
+    const topicConfig = this.#getTopicConfig(topic);
 
     const defVal = typeof sub.default === 'undefined' ? topicConfig.default : sub.default;
     const eventOnly = hasOwnProperty(sub, 'eventOnly') ? sub.eventOnly : topicConfig.eventOnly;
@@ -297,16 +301,15 @@ ${buildValidationErrorMessage(topic.name, defaultValidationResult.messages, topi
   /**
    * @summary Publish to a topic
    *
-   * @alias module:pubst.publish
    * @param {string} topic - The topic to publish to
    * @param {*} payload The payload to publish
    */
-  function publish(topic, payload) {
-    if (!topics[topic]) {
-      warn(`Received a publish for ${topic} but that topic has not been configured.`);
+  publish(topic, payload) {
+    if (!this.#topics[topic]) {
+      this.#warn(`Received a publish for ${topic} but that topic has not been configured.`);
     }
 
-    const topicConfig = getTopicConfig(topic);
+    const topicConfig = this.#getTopicConfig(topic);
 
     if (!topicConfig.eventOnly) {
       const validationResult = topicConfig.validator(payload);
@@ -317,14 +320,14 @@ ${buildValidationErrorMessage(topic.name, defaultValidationResult.messages, topi
       }
     }
 
-    store[topic] = payload;
-    const subs = allSubsFor(topic);
+    this.#store[topic] = payload;
+    const subs = this.#allSubsFor(topic);
 
     if (subs.length === 0) {
-      warn(`There are no subscribers that match '${topic}'!`);
+      this.#warn(`There are no subscribers that match '${topic}'!`);
     } else {
       subs.forEach(sub => {
-        scheduleCall(sub, store[topic], topic);
+        this.#scheduleCall(sub, this.#store[topic], topic);
       });
     }
   }
@@ -332,7 +335,6 @@ ${buildValidationErrorMessage(topic.name, defaultValidationResult.messages, topi
   /**
    * @summary Subscribe to one or more topics
    *
-   * @alias module:pubst.subscribe
    * @param {string|RegExp} topic - The topic to receive updates for
    * @param {Function|Object} handler - Either your handler function or
    *                                    a subscription configuration object
@@ -370,7 +372,7 @@ ${buildValidationErrorMessage(topic.name, defaultValidationResult.messages, topi
    * the topic as the second argument.
    * </p>
    */
-  function subscribe(topic, handler, def) {
+  subscribe(topic, handler, def) {
     let subscription;
 
     if (typeof handler === 'function') {
@@ -386,83 +388,72 @@ ${buildValidationErrorMessage(topic.name, defaultValidationResult.messages, topi
       subscription.topic = topic;
     }
 
-    addSub(subscription);
+    this.#addSub(subscription);
 
     let stored;
 
     if (typeof topic === 'string') {
       stored = [{
         topic,
-        val: currentVal(topic, def)
+        val: this.currentVal(topic, def)
       }];
     } else if (topic instanceof RegExp) {
-      stored = Object.keys(store).filter(key => key.match(topic)).map(key => {
+      stored = Object.keys(this.#store).filter(key => key.match(topic)).map(key => {
         return {
           topic: key,
-          val: currentVal(key, def)
+          val: this.currentVal(key, def)
         };
       });
     }
 
     stored.forEach(item => {
-      const topicConfig = getTopicConfig(item.topic);
+      const topicConfig = this.#getTopicConfig(item.topic);
       const doPrime = hasOwnProperty(subscription, 'doPrime') ? subscription.doPrime : topicConfig.doPrime;
 
       if (doPrime && (topicConfig.eventOnly || isSet(item.val))) {
-        scheduleCall(subscription, item.val, item.topic);
+        this.#scheduleCall(subscription, item.val, item.topic);
       }
     });
 
     return () => {
-      removeSub(subscription);
+      this.#removeSub(subscription);
     };
   }
 
   /**
    * @summary Get the current value of a topic.
    *
-   * @alias module:pubst.currentVal
    * @param {string} topic - The topic to get the value of.
    * @param {*} default - (Optional) a value to return if the topic is
    *                      empty.
    * @returns {*} - The current value or the default
    */
-  function currentVal(topic, def) {
-    const defToUse = isDefined(def) ? def : getTopicConfig(topic).default;
-    return valueOrDefault(store[topic], defToUse);
+  currentVal(topic, def) {
+    const defToUse = isDefined(def) ? def : this.#getTopicConfig(topic).default;
+    return valueOrDefault(this.#store[topic], defToUse);
   }
 
   /**
    * @summary Clears a given topic.
    *
-   * @alias module:pubst.clear
    * @param {string} topic - The topic to clear
    *
    * @description Clears the topic by publishing a `null` to it.
    */
-  function clear(topic) {
-    if (hasOwnProperty(store, topic)) {
-      publish(topic, null);
+  clear(topic) {
+    if (hasOwnProperty(this.#store, topic)) {
+      this.publish(topic, null);
     }
   }
 
   /**
    * @summary Clears all known topics.
-   *
-   * @alias module:pubst.clearAll
    */
-  function clearAll() {
-    Object.keys(store).forEach(clear);
+  clearAll() {
+    Object.keys(this.#store).forEach(topic => {
+      this.clear(topic);
+    });
   }
+}
 
-  return {
-    addTopic,
-    addTopics,
-    clear,
-    clearAll,
-    configure,
-    currentVal,
-    publish,
-    subscribe
-  };
-}));
+export default Pubst;

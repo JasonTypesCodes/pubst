@@ -1,10 +1,11 @@
-const clearRequire = require('clear-require');
-const chai = require('chai');
+import * as chai from 'chai';
+import Pubst from './Pubst.js';
+import sinonChai from 'sinon-chai';
+import sinon from 'sinon';
 
-chai.use(require('sinon-chai'));
+chai.use(sinonChai);
 
 const expect = chai.expect;
-const sinon = require('sinon');
 
 describe('pubst', () => {
   let pubst;
@@ -15,13 +16,11 @@ describe('pubst', () => {
 
   beforeEach(() => {
     clock = sinon.useFakeTimers();
-    pubst = require('./pubst');
-    pubst.configure({showWarnings: false});
+    pubst = new Pubst({showWarnings: false});
   });
 
   afterEach(() => {
     clock.restore();
-    clearRequire('./pubst');
   });
 
   describe('currentVal', () => {
@@ -118,6 +117,7 @@ describe('pubst', () => {
 
         try {
           pubst.addTopic({});
+        // eslint-disable-next-line no-unused-vars
         } catch (e) {
           errorThrown = true;
         }

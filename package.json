@@ -1,14 +1,14 @@
 {
   "name": "pubst",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "A slightly opinionated pub/sub event emitter for JavaScript.",
-  "main": "lib/pubst.js",
+  "main": "src/Pubst.js",
+  "type": "module",
   "scripts": {
-    "build": "babel src -d lib",
-    "clean": "shx rm -rf lib doc",
+    "clean": "shx rm -rf doc",
     "build-docs": "jsdoc ./src -d ./doc",
     "lint": "eslint ./src",
-    "prepare": "npm-run-all clean build-docs build",
+    "prepare": "npm-run-all clean build-docs",
     "test": "mocha ./src/*.test.js",
     "verify": "npm-run-all lint test"
   },
@@ -34,16 +34,14 @@
   },
   "homepage": "https://github.com/JasonTypesCodes/pubst#readme",
   "devDependencies": {
-    "babel-cli": "6.26.0",
-    "babel-preset-env": "1.7.0",
-    "chai": "4.2.0",
-    "clear-require": "3.0.0",
-    "eslint": "7.11.0",
-    "jsdoc": "3.6.6",
-    "mocha": "8.2.0",
+    "chai": "6.2.2",
+    "eslint": "9.39.2",
+    "globals": "17.2.0",
+    "jsdoc": "4.0.5",
+    "mocha": "11.7.5",
     "npm-run-all": "4.1.5",
-    "shx": "0.3.2",
-    "sinon": "9.2.0",
-    "sinon-chai": "3.5.0"
+    "shx": "0.4.0",
+    "sinon": "21.0.1",
+    "sinon-chai": "4.0.1"
   }
 }

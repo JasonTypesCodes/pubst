@@ -1,3 +1,6 @@
+## v0.5.0 - Jan 29 2026
+  + Converted project to ESM module.  This is a **BREAKING** change.
+
 ## v0.4.2 - Sep 20 2019
   + Dependency updates.
   + Fixes new linting errors.
