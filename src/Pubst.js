@@ -1,3 +1,10 @@
+import {
+  hasOwnProperty,
+  isDefined,
+  isSet,
+  valueOrDefault
+} from "./utils.js";
+
 /**
  *  Pubst - A slightly opinionated pub/sub library for JavaScript.
  *
@@ -20,10 +27,6 @@
  * @copyright Jason Schindler 2017-2026
  * @description A slightly opinionated pub/sub library for JavaScript.
  */
-
-function hasOwnProperty(item, key) {
-  return Object.prototype.hasOwnProperty.call(item, key);
-}
 
 const VALIDATION_SUCCESS = {
   valid: true,
@@ -77,30 +80,6 @@ function buildValidationErrorMessage(topicName, validationMessages, payload) {
   const payloadString = 'Received Payload:\n  ' + JSON.stringify(payload, null, 2);
 
   return `Validation failed for topic '${topicName}'.\n ${messages}\n ${payloadString}`;
-}
-
-function isUndefined(input) {
-  return typeof input === 'undefined';
-}
-
-function isDefined(input) {
-  return !isUndefined(input);
-}
-
-function isNotSet(item) {
-  return item === null || isUndefined(item);
-}
-
-function isSet(item) {
-  return !isNotSet(item);
-}
-
-function valueOrDefault(value, def) {
-  if(isNotSet(value) && isDefined(def)){
-    return def;
-  }
-
-  return value;
 }
 
 /**
