@@ -13,6 +13,7 @@ const compat = new FlatCompat({
     allConfig: js.configs.all
 });
 
+
 export default defineConfig([{
     extends: compat.extends("eslint:recommended"),
 
@@ -20,10 +21,8 @@ export default defineConfig([{
         globals: {
             ...globals.node,
             ...globals.browser,
-            ...globals.amd,
             ...globals.mocha,
         },
-
         ecmaVersion: 2022,
         sourceType: "module",
     },
