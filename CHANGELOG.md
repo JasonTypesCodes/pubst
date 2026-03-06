@@ -1,3 +1,7 @@
+## v0.5.2 - Mar 03 2026
+  + Minor refactoring -- moves utilities to separate file
+  + Dependency updates.
+
 ## v0.5.0 - Jan 29 2026
   + Converted project to ESM module.  This is a **BREAKING** change.
 
