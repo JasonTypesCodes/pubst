@@ -28,22 +28,12 @@ import {
  * @description A slightly opinionated pub/sub library for JavaScript.
  */
 
-const VALIDATION_SUCCESS = {
-  valid: true,
-  messages: []
-};
-
-function everythingIsAwesome() {
-  return VALIDATION_SUCCESS;
-}
-
 const DEFAULT_TOPIC_CONFIG = {
   name: '',
   default: undefined,
   eventOnly: false,
   doPrime: true,
-  allowRepeats: false,
-  validator: everythingIsAwesome
+  allowRepeats: false
 };
 
 const ALLOWED_SUB_PROPS = [
@@ -68,18 +58,6 @@ function buildConfig(base, extensions) {
   }
 
   return result;
-}
-
-function buildValidationErrorMessage(topicName, validationMessages, payload) {
-  let messages = '';
-  if (Array.isArray(validationMessages) && validationMessages.length > 0) {
-    const s = validationMessages.length === 1 ? '' : 's';
-    messages = `Message${s}:\n  ${validationMessages.join('\n  ')}`;
-  }
-
-  const payloadString = 'Received Payload:\n  ' + JSON.stringify(payload, null, 2);
-
-  return `Validation failed for topic '${topicName}'.\n ${messages}\n ${payloadString}`;
 }
 
 /**
@@ -164,18 +142,6 @@ class Pubst {
    *      `allowRepeats` (default: false) - Alert subscribers of all publish events, even if the value is equal (by strict comparison) to the last value sent.
    *      This can be overridden by subscribers.
    *    </li>
-   *    <li>
-   *      `validator` - Validation function to assert that published values are valid before sent to subscribers.
-   *      Function will be called with each published payload.
-   *      If a payload fails validation, an error will be thrown during the `publish` call.
-   *      The function should return something like:<br/>
-   *      <code>
-   *        {
-   *          valid: false,
-   *          messages: ['Message 1', 'Message 2']
-   *        }
-   *      </code>
-   *    </li>
    *  </ul>
    * </p>
    */
@@ -188,15 +154,6 @@ class Pubst {
 
     if (this.#topics[topic.name]) {
       this.#warn(`The '${topic.name}' topic has already been configured.  The previous configuration will be overwritten.`);
-    }
-
-    if (isDefined(topic.default)) {
-      const defaultValidationResult = topic.validator(topic.default);
-      if (!defaultValidationResult.valid) {
-        this.#warn(`'${topic.name}' has been configured with a default value that does not pass validation.
-  Complete message:
-  ${buildValidationErrorMessage(topic.name, defaultValidationResult.messages, topic.default)}`);
-      }
     }
 
     this.#topics[topic.name] = topic;
@@ -286,17 +243,6 @@ class Pubst {
   publish(topic, payload) {
     if (!this.#topics[topic]) {
       this.#warn(`Received a publish for ${topic} but that topic has not been configured.`);
-    }
-
-    const topicConfig = this.#getTopicConfig(topic);
-
-    if (!topicConfig.eventOnly) {
-      const validationResult = topicConfig.validator(payload);
-
-      if (!validationResult || !validationResult.valid) {
-        const messages = validationResult ? validationResult.messages : [];
-        throw new Error(buildValidationErrorMessage(topic, messages, payload));
-      }
     }
 
     this.#store[topic] = payload;

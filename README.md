@@ -125,7 +125,6 @@ Sets the configuration for a new topic.
     + This can be overridden by subscribers.
   + `allowRepeats` (default: false) - Alert subscribers of all publish events, even if the value is equal (by strict comparison) to the last value sent.
     + This can be overridden by subscribers.
-  + `validator` - A validation function to assert that published values are valid before they are sent to subscribers.
 
 #### Examples
 
@@ -134,31 +133,13 @@ pubst.addTopics([
   {
     name: 'game.started',
     default: false,
-    doPrime: true,
-    validator: payload => {
-      const valid = typeof payload === 'boolean';
-      if (!valid) {
-        return {
-          valid,
-          messages: [
-            'Value must be a boolean'
-          ]
-        };
-      }
-
-      return {
-        valid
-      };
-    }
+    doPrime: true
   },
   {
     name: 'player.guess',
     default: -1,
     allowRepeats: true,
-    doPrime: false,
-    validator: payload => ({
-      valid: typeof payload === 'number'
-    })
+    doPrime: false
   },
   {
     name: 'player.won',
