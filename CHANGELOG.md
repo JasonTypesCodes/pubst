@@ -1,3 +1,7 @@
+## v0.5.3 - Apr 11 2026
+  + Fixes bug where not all usages of warn had been updated to use the private method
+  + Dependency updates.
+
 ## v0.5.2 - Mar 03 2026
   + Minor refactoring -- moves utilities to separate file
   + Dependency updates.

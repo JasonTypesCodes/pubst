@@ -187,13 +187,13 @@ class Pubst {
     }
 
     if (this.#topics[topic.name]) {
-      this.warn(`The '${topic.name}' topic has already been configured.  The previous configuration will be overwritten.`);
+      this.#warn(`The '${topic.name}' topic has already been configured.  The previous configuration will be overwritten.`);
     }
 
     if (isDefined(topic.default)) {
       const defaultValidationResult = topic.validator(topic.default);
       if (!defaultValidationResult.valid) {
-        this.warn(`'${topic.name}' has been configured with a default value that does not pass validation.
+        this.#warn(`'${topic.name}' has been configured with a default value that does not pass validation.
   Complete message:
   ${buildValidationErrorMessage(topic.name, defaultValidationResult.messages, topic.default)}`);
       }
