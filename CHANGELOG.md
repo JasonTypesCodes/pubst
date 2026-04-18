@@ -1,3 +1,6 @@
+## v0.6.0 -
+  + Extracted logging behavior from core class
+
 ## v0.5.3 - Apr 11 2026
   + Fixes bug where not all usages of warn had been updated to use the private method
   + Dependency updates.
