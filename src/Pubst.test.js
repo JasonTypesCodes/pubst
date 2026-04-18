@@ -2,12 +2,13 @@ import * as chai from 'chai';
 import Pubst from './Pubst.js';
 import sinonChai from 'sinon-chai';
 import sinon from 'sinon';
+import SilentLogger from './logger/SilentLogger.js';
 
 chai.use(sinonChai);
 
 const expect = chai.expect;
 
-describe('pubst', () => {
+describe('Pubst', () => {
   let pubst;
   const TEST_TOPIC_1 = 'test.topic.one';
   const TEST_TOPIC_2 = 'test.topic.two';
@@ -16,7 +17,7 @@ describe('pubst', () => {
 
   beforeEach(() => {
     clock = sinon.useFakeTimers();
-    pubst = new Pubst({showWarnings: false});
+    pubst = new Pubst({logger: new SilentLogger()});
   });
 
   afterEach(() => {

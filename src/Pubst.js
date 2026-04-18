@@ -3,7 +3,9 @@ import {
   isDefined,
   isSet,
   valueOrDefault
-} from "./utils.js";
+} from "./util/utils.js";
+
+import ConsoleLogger from "./logger/ConsoleLogger.js";
 
 /**
  *  Pubst - A slightly opinionated pub/sub library for JavaScript.
@@ -65,20 +67,12 @@ function buildConfig(base, extensions) {
  */
 class Pubst {
 
-  #config = {
-    showWarnings: true
-  };
+  #logger = new ConsoleLogger();
 
   #store = {};
   #stringSubs = {};
   #regexSubs = [];
   #topics = {};
-
-  #warn(...messages) {
-    if (this.#config.showWarnings) {
-      console.warn('WARNING:', ...messages);
-    }
-  }
 
   /**
    * @summary Creates a new Pubst instance.
@@ -97,16 +91,14 @@ class Pubst {
    * <p>
    * Available options are:
    *  <ul>
-   *    <li>`showWarnings` (default: true) - Show warnings in the console.</li>
+   *    <li>`logger` (default: ConsoleLogger) - Logger to send warning messages to.</li>
    *    <li>`topics` - An array of topic configurations. (See: `addTopic` for topic configuration options)</li>
    *  </ul>
    * </p>
    */
   configure(userConfig = {}) {
-    for (const key in userConfig) {
-      if (hasOwnProperty(this.#config, key)) {
-        this.#config[key] = userConfig[key];
-      }
+    if (userConfig.logger) {
+      this.#logger = userConfig.logger
     }
 
     if (Array.isArray(userConfig.topics)) {
@@ -153,7 +145,7 @@ class Pubst {
     }
 
     if (this.#topics[topic.name]) {
-      this.#warn(`The '${topic.name}' topic has already been configured.  The previous configuration will be overwritten.`);
+      this.#logger.warn(`The '${topic.name}' topic has already been configured.  The previous configuration will be overwritten.`);
     }
 
     this.#topics[topic.name] = topic;
@@ -187,13 +179,13 @@ class Pubst {
   #addSub(subscriber) {
     if (typeof subscriber.topic === 'string') {
       if (!this.#topics[subscriber.topic]) {
-        this.#warn(`Adding a subscriber to non-configured topic '${subscriber.topic}'`);
+        this.#logger.warn(`Adding a subscriber to non-configured topic '${subscriber.topic}'`);
       }
       this.#stringSubs[subscriber.topic] = this.#getStringSubsFor(subscriber.topic).concat(subscriber);
     } else if (subscriber.topic instanceof RegExp) {
       const matchCount = Object.keys(this.#topics).filter(topic => topic.match(subscriber.topic)).length;
       if (matchCount === 0) {
-        this.#warn(`Adding a RegExp subscriber that matches no configured topics.`);
+        this.#logger.warn(`Adding a RegExp subscriber that matches no configured topics.`);
       }
       this.#regexSubs.push(subscriber);
     } else {
@@ -242,14 +234,14 @@ class Pubst {
    */
   publish(topic, payload) {
     if (!this.#topics[topic]) {
-      this.#warn(`Received a publish for ${topic} but that topic has not been configured.`);
+      this.#logger.warn(`Received a publish for ${topic} but that topic has not been configured.`);
     }
 
     this.#store[topic] = payload;
     const subs = this.#allSubsFor(topic);
 
     if (subs.length === 0) {
-      this.#warn(`There are no subscribers that match '${topic}'!`);
+      this.#logger.warn(`There are no subscribers that match '${topic}'!`);
     } else {
       subs.forEach(sub => {
         this.#scheduleCall(sub, this.#store[topic], topic);

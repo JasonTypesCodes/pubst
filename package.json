@@ -9,7 +9,7 @@
     "build-docs": "jsdoc ./src -d ./doc",
     "lint": "eslint ./src",
     "prepare": "npm-run-all clean build-docs",
-    "test": "mocha ./src/*.test.js",
+    "test": "mocha src/**/*.test.js src/*.test.js",
     "verify": "npm-run-all lint test"
   },
   "repository": {
