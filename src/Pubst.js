@@ -145,7 +145,10 @@ class Pubst {
     }
 
     if (this.#topics[topic.name]) {
-      this.#logger.warn(`The '${topic.name}' topic has already been configured.  The previous configuration will be overwritten.`);
+      this.#logger.warn(
+        'Pubst.addTopic',
+        `The '${topic.name}' topic has already been configured.  The previous configuration will be overwritten.`
+      );
     }
 
     this.#topics[topic.name] = topic;
@@ -179,13 +182,13 @@ class Pubst {
   #addSub(subscriber) {
     if (typeof subscriber.topic === 'string') {
       if (!this.#topics[subscriber.topic]) {
-        this.#logger.warn(`Adding a subscriber to non-configured topic '${subscriber.topic}'`);
+        this.#logger.warn('Pubst.addSub', `Adding a subscriber to non-configured topic '${subscriber.topic}'`);
       }
       this.#stringSubs[subscriber.topic] = this.#getStringSubsFor(subscriber.topic).concat(subscriber);
     } else if (subscriber.topic instanceof RegExp) {
       const matchCount = Object.keys(this.#topics).filter(topic => topic.match(subscriber.topic)).length;
       if (matchCount === 0) {
-        this.#logger.warn(`Adding a RegExp subscriber that matches no configured topics.`);
+        this.#logger.warn('Pubst.addSub', `Adding a RegExp subscriber that matches no configured topics.`);
       }
       this.#regexSubs.push(subscriber);
     } else {
@@ -234,14 +237,14 @@ class Pubst {
    */
   publish(topic, payload) {
     if (!this.#topics[topic]) {
-      this.#logger.warn(`Received a publish for ${topic} but that topic has not been configured.`);
+      this.#logger.warn('Pubst.publish', `Received a publish for ${topic} but that topic has not been configured.`);
     }
 
     this.#store[topic] = payload;
     const subs = this.#allSubsFor(topic);
 
     if (subs.length === 0) {
-      this.#logger.warn(`There are no subscribers that match '${topic}'!`);
+      this.#logger.warn('Pubst.publish', `There are no subscribers that match '${topic}'!`);
     } else {
       subs.forEach(sub => {
         this.#scheduleCall(sub, this.#store[topic], topic);
