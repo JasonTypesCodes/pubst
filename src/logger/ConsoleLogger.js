@@ -16,10 +16,8 @@
 
 export default class ConsoleLogger {
 
-  warn(...messages) {
-    messages.forEach(msg => {
-      console.warn(`Pubst WARNING: ${msg}`);
-    });
+  warn(source, message) {
+    console.warn(`WARNING | ${source} : ${message}`);
   }
 
 }
