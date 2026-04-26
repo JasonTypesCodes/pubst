@@ -22,6 +22,13 @@ chai.use(sinonChai);
 
 const expect = chai.expect;
 
+// Helper to flush promise microtasks so that subscribe's async
+// priming (via store.getValue().then()) resolves before we tick
+// the fake clock to fire setTimeout callbacks.
+// We chain multiple Promise.resolve() calls to drain several
+// levels of microtask depth (e.g. getTopicNames().then -> getValue().then -> scheduleCall).
+const flushPromises = () => Promise.resolve().then(() => Promise.resolve()).then(() => Promise.resolve()).then(() => Promise.resolve());
+
 describe('Pubst', () => {
   let pubst;
   const TEST_TOPIC_1 = 'test.topic.one';
@@ -29,9 +36,10 @@ describe('Pubst', () => {
 
   let clock;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     clock = sinon.useFakeTimers();
-    pubst = new Pubst({showWarnings: false});
+    pubst = new Pubst();
+    await pubst.configure({showWarnings: false});
   });
 
   afterEach(() => {
@@ -48,34 +56,36 @@ describe('Pubst', () => {
       }
     });
 
-    it('suppresses warnings when showWarnings is false', () => {
+    it('suppresses warnings when showWarnings is false', async () => {
       warnSpy = sinon.spy(console, 'warn');
-      const p = new Pubst({showWarnings: false});
+      const p = new Pubst();
+      await p.configure({showWarnings: false});
 
-      p.publish('unconfigured.topic', 'value');
+      await p.publish('unconfigured.topic', 'value');
 
       clock.tick(1);
 
       expect(warnSpy).not.to.have.been.called;
     });
 
-    it('shows warnings by default', () => {
+    it('shows warnings by default', async () => {
       warnSpy = sinon.spy(console, 'warn');
       const p = new Pubst();
 
-      p.publish('unconfigured.topic', 'value');
+      await p.publish('unconfigured.topic', 'value');
 
       clock.tick(1);
 
       expect(warnSpy).to.have.been.called;
     });
 
-    it('uses explicit logger over showWarnings', () => {
+    it('uses explicit logger over showWarnings', async () => {
       warnSpy = sinon.spy(console, 'warn');
       const customLogger = { warn: sinon.spy() };
-      const p = new Pubst({logger: customLogger, showWarnings: false});
+      const p = new Pubst();
+      await p.configure({logger: customLogger, showWarnings: false});
 
-      p.publish('unconfigured.topic', 'value');
+      await p.publish('unconfigured.topic', 'value');
 
       clock.tick(1);
 
@@ -83,11 +93,12 @@ describe('Pubst', () => {
       expect(warnSpy).not.to.have.been.called;
     });
 
-    it('shows warnings when showWarnings is true', () => {
+    it('shows warnings when showWarnings is true', async () => {
       warnSpy = sinon.spy(console, 'warn');
-      const p = new Pubst({showWarnings: true});
+      const p = new Pubst();
+      await p.configure({showWarnings: true});
 
-      p.publish('unconfigured.topic', 'value');
+      await p.publish('unconfigured.topic', 'value');
 
       clock.tick(1);
 
@@ -95,100 +106,219 @@ describe('Pubst', () => {
     });
   });
 
+  describe('custom store', () => {
+    function createStubStore() {
+      const store = {};
+      return {
+        registerTopic: sinon.spy(async (topicName, initialVal = null, storeConfig = {}) => {
+          store[topicName] = initialVal;
+          return {topicName, initialVal, storeConfig};
+        }),
+        getValue: sinon.spy(async (topicName) => {
+          return store[topicName];
+        }),
+        setValue: sinon.spy(async (topicName, value = null) => {
+          store[topicName] = value;
+          return value;
+        }),
+        clearValue: sinon.spy(async (topicName) => {
+          store[topicName] = null;
+          return null;
+        }),
+        getTopicNames: sinon.spy(async () => {
+          return Object.keys(store);
+        }),
+        _store: store
+      };
+    }
+
+    it('uses a custom store when provided via configure', async () => {
+      const customStore = createStubStore();
+      const p = new Pubst();
+      await p.configure({showWarnings: false, store: customStore});
+
+      await p.publish('my.topic', 'value');
+
+      expect(customStore.setValue).to.have.been.calledWith('my.topic', 'value');
+    });
+
+    it('calls registerTopic when addTopic is called', async () => {
+      const customStore = createStubStore();
+      const p = new Pubst();
+      await p.configure({showWarnings: false, store: customStore});
+
+      await p.addTopic({name: 'my.topic', default: 'default-val'});
+
+      expect(customStore.registerTopic).to.have.been.calledOnce;
+      expect(customStore.registerTopic).to.have.been.calledWith('my.topic', null, {});
+    });
+
+    it('passes storeConfig through to registerTopic', async () => {
+      const customStore = createStubStore();
+      const p = new Pubst();
+      await p.configure({showWarnings: false, store: customStore});
+
+      const storeConfig = { persistenceKey: 'my-key', ttl: 3600 };
+      await p.addTopic({name: 'my.topic', default: 'val', storeConfig});
+
+      expect(customStore.registerTopic).to.have.been.calledWith('my.topic', null, storeConfig);
+    });
+
+    it('calls getValue when currentVal is called', async () => {
+      const customStore = createStubStore();
+      const p = new Pubst();
+      await p.configure({showWarnings: false, store: customStore});
+
+      await p.publish('my.topic', 'hello');
+      customStore.getValue.resetHistory();
+
+      const val = await p.currentVal('my.topic');
+
+      expect(customStore.getValue).to.have.been.calledWith('my.topic');
+      expect(val).to.equal('hello');
+    });
+
+    it('calls setValue when publish is called', async () => {
+      const customStore = createStubStore();
+      const p = new Pubst();
+      await p.configure({showWarnings: false, store: customStore});
+
+      await p.publish('my.topic', 'payload');
+
+      expect(customStore.setValue).to.have.been.calledWith('my.topic', 'payload');
+    });
+
+    it('calls getTopicNames and publishes null when clearAll is called', async () => {
+      const customStore = createStubStore();
+      const p = new Pubst();
+      await p.configure({showWarnings: false, store: customStore});
+
+      await p.publish('topic.one', 'val1');
+      await p.publish('topic.two', 'val2');
+
+      customStore.getTopicNames.resetHistory();
+      customStore.setValue.resetHistory();
+
+      await p.clearAll();
+
+      expect(customStore.getTopicNames).to.have.been.called;
+      // clearAll calls clear for each topic, which calls publish(topic, null)
+      expect(customStore.setValue).to.have.been.calledWith('topic.one', null);
+      expect(customStore.setValue).to.have.been.calledWith('topic.two', null);
+    });
+
+    it('registers topics passed via configure', async () => {
+      const customStore = createStubStore();
+      const p = new Pubst();
+      await p.configure({
+        showWarnings: false,
+        store: customStore,
+        topics: [
+          {name: 'topic.a', default: 'a-default'},
+          {name: 'topic.b', default: 'b-default', storeConfig: {key: 'b'}}
+        ]
+      });
+
+      expect(customStore.registerTopic).to.have.been.calledTwice;
+      expect(customStore.registerTopic).to.have.been.calledWith('topic.a', null, {});
+      expect(customStore.registerTopic).to.have.been.calledWith('topic.b', null, {key: 'b'});
+    });
+  });
+
   describe('currentVal', () => {
-    it('returns the current value', () => {
+    it('returns the current value', async () => {
       const testValue = 'some value';
 
-      pubst.publish(TEST_TOPIC_1, testValue);
+      await pubst.publish(TEST_TOPIC_1, testValue);
 
-      expect(pubst.currentVal(TEST_TOPIC_1)).to.equal(testValue);
+      expect(await pubst.currentVal(TEST_TOPIC_1)).to.equal(testValue);
     });
 
-    it('returns the current value with a default', () => {
+    it('returns the current value with a default', async () => {
       const testValue = 'some value';
       const myDefault = 'some default';
 
-      pubst.publish(TEST_TOPIC_1, testValue);
+      await pubst.publish(TEST_TOPIC_1, testValue);
 
-      expect(pubst.currentVal(TEST_TOPIC_1, myDefault)).to.equal(testValue);
+      expect(await pubst.currentVal(TEST_TOPIC_1, myDefault)).to.equal(testValue);
     });
 
-    it('returns the default value if current was never set', () => {
+    it('returns the default value if current was never set', async () => {
       const myDefault = 'some default';
 
-      expect(pubst.currentVal(TEST_TOPIC_1, myDefault)).to.equal(myDefault);
+      expect(await pubst.currentVal(TEST_TOPIC_1, myDefault)).to.equal(myDefault);
     });
 
-    it('returns the default value if current was set to null', () => {
+    it('returns the default value if current was set to null', async () => {
       const myDefault = 'some default';
 
-      pubst.publish(TEST_TOPIC_1, null);
+      await pubst.publish(TEST_TOPIC_1, null);
 
-      expect(pubst.currentVal(TEST_TOPIC_1, myDefault)).to.equal(myDefault);
+      expect(await pubst.currentVal(TEST_TOPIC_1, myDefault)).to.equal(myDefault);
     });
 
-    it('returns undefined if value was not set and no default is provided', () => {
-      expect(pubst.currentVal(TEST_TOPIC_1)).to.be.an('undefined');
+    it('returns undefined if value was not set and no default is provided', async () => {
+      expect(await pubst.currentVal(TEST_TOPIC_1)).to.be.an('undefined');
     });
 
-    it('returns null if value was set to null and no default is provided', () => {
-      pubst.publish(TEST_TOPIC_1, null);
-      expect(pubst.currentVal(TEST_TOPIC_1)).to.equal(null);
+    it('returns null if value was set to null and no default is provided', async () => {
+      await pubst.publish(TEST_TOPIC_1, null);
+      expect(await pubst.currentVal(TEST_TOPIC_1)).to.equal(null);
     });
 
-    it('returns null if value was not set and a default of null is provided', () => {
-      expect(pubst.currentVal(TEST_TOPIC_1, null)).to.equal(null);
+    it('returns null if value was not set and a default of null is provided', async () => {
+      expect(await pubst.currentVal(TEST_TOPIC_1, null)).to.equal(null);
     });
 
-    it('returns topic default if value was not set and no default is provided', () => {
+    it('returns topic default if value was not set and no default is provided', async () => {
       const myDefault = 'some default';
 
-      pubst.addTopic({
+      await pubst.addTopic({
         name: TEST_TOPIC_1,
         default: myDefault
       });
 
-      expect(pubst.currentVal(TEST_TOPIC_1)).to.equal(myDefault);
+      expect(await pubst.currentVal(TEST_TOPIC_1)).to.equal(myDefault);
     });
 
-    it('returns provided default if value was not set and topic was configured with a default', () => {
+    it('returns provided default if value was not set and topic was configured with a default', async () => {
       const myDefault = 'some default';
       const topicDefault = 'topic default';
 
-      pubst.addTopic({
+      await pubst.addTopic({
         name: TEST_TOPIC_1,
         default: topicDefault
       });
 
-      expect(pubst.currentVal(TEST_TOPIC_1)).to.equal(topicDefault);
-      expect(pubst.currentVal(TEST_TOPIC_1, myDefault)).to.equal(myDefault);
+      expect(await pubst.currentVal(TEST_TOPIC_1)).to.equal(topicDefault);
+      expect(await pubst.currentVal(TEST_TOPIC_1, myDefault)).to.equal(myDefault);
     });
   });
 
   describe('publish', () => {
-    it('sets a payload for a topic', () => {
+    it('sets a payload for a topic', async () => {
       const payload1 = 'payload1';
       const payload2 = 'payload2';
 
-      expect(pubst.currentVal(TEST_TOPIC_1)).to.be.an('undefined');
+      expect(await pubst.currentVal(TEST_TOPIC_1)).to.be.an('undefined');
 
-      pubst.publish(TEST_TOPIC_1, payload1);
+      await pubst.publish(TEST_TOPIC_1, payload1);
 
-      expect(pubst.currentVal(TEST_TOPIC_1)).to.equal(payload1);
+      expect(await pubst.currentVal(TEST_TOPIC_1)).to.equal(payload1);
 
-      pubst.publish(TEST_TOPIC_1, payload2);
+      await pubst.publish(TEST_TOPIC_1, payload2);
 
-      expect(pubst.currentVal(TEST_TOPIC_1)).to.equal(payload2);
+      expect(await pubst.currentVal(TEST_TOPIC_1)).to.equal(payload2);
     });
   });
 
   describe('topic config', () => {
     describe('name', () => {
-      it('is required', () => {
+      it('is required', async () => {
         let errorThrown = false;
 
         try {
-          pubst.addTopic({});
+          await pubst.addTopic({});
         // eslint-disable-next-line no-unused-vars
         } catch (e) {
           errorThrown = true;
@@ -199,48 +329,49 @@ describe('Pubst', () => {
     });
 
     describe('default', () => {
-      it('is configurable', () => {
+      it('is configurable', async () => {
         const handler = sinon.spy();
         const defaultVal = 'DEFAULT VALUE';
 
-        pubst.addTopic({
+        await pubst.addTopic({
           name: TEST_TOPIC_1,
           default: defaultVal,
           doPrime: false
         });
 
-        pubst.publish(TEST_TOPIC_1, 'SOME VALUE');
+        await pubst.publish(TEST_TOPIC_1, 'SOME VALUE');
 
         pubst.subscribe(TEST_TOPIC_1, handler);
 
-        pubst.clear(TEST_TOPIC_1);
+        await pubst.clear(TEST_TOPIC_1);
 
         clock.tick(1);
 
         expect(handler).to.have.been.calledWith(defaultVal, TEST_TOPIC_1);
       });
 
-      it('is off by default', () => {
+      it('is off by default', async () => {
         const handler = sinon.spy();
 
-        pubst.addTopic({
+        await pubst.addTopic({
           name: TEST_TOPIC_1,
           doPrime: true
         });
 
         pubst.subscribe(TEST_TOPIC_1, handler);
 
+        await flushPromises();
         clock.tick(1);
 
         expect(handler).not.to.have.been.called;
       });
 
-      it('is sent again after a clear', () => {
+      it('is sent again after a clear', async () => {
         const handler = sinon.spy();
         const defaultVal = 'SOME DEFAULT';
         const aValue = 'A real value';
 
-        pubst.addTopic({
+        await pubst.addTopic({
           name: TEST_TOPIC_1,
           default: defaultVal,
           doPrime: true
@@ -248,13 +379,14 @@ describe('Pubst', () => {
 
         pubst.subscribe(TEST_TOPIC_1, handler);
 
+        await flushPromises();
         clock.tick(1);
 
         expect(handler).to.have.been.calledWith(defaultVal, TEST_TOPIC_1);
 
         handler.resetHistory();
 
-        pubst.publish(TEST_TOPIC_1, aValue);
+        await pubst.publish(TEST_TOPIC_1, aValue);
 
         clock.tick(1);
 
@@ -262,14 +394,14 @@ describe('Pubst', () => {
 
         handler.resetHistory();
 
-        pubst.clear(TEST_TOPIC_1);
+        await pubst.clear(TEST_TOPIC_1);
 
         clock.tick(1);
 
         expect(handler).to.have.been.calledWith(defaultVal, TEST_TOPIC_1);
       });
 
-      it('can be overriden', () => {
+      it('can be overriden', async () => {
         const handler1 = sinon.spy();
         const handler2 = sinon.spy();
         const handler3 = sinon.spy();
@@ -280,7 +412,7 @@ describe('Pubst', () => {
 
         const someValue = 'some value';
 
-        pubst.addTopic({
+        await pubst.addTopic({
           name: TEST_TOPIC_1,
           default: topicDefault,
           doPrime: false
@@ -293,7 +425,7 @@ describe('Pubst', () => {
           default: sub3Default
         });
 
-        pubst.publish(TEST_TOPIC_1, someValue);
+        await pubst.publish(TEST_TOPIC_1, someValue);
 
         clock.tick(1);
 
@@ -305,7 +437,7 @@ describe('Pubst', () => {
         handler2.resetHistory();
         handler3.resetHistory();
 
-        pubst.clear(TEST_TOPIC_1);
+        await pubst.clear(TEST_TOPIC_1);
 
         clock.tick(1);
 
@@ -316,10 +448,10 @@ describe('Pubst', () => {
     });
 
     describe('eventOnly', () => {
-      it('creates topics that do not publish a payload', () => {
+      it('creates topics that do not publish a payload', async () => {
         const handler = sinon.spy();
 
-        pubst.addTopic({
+        await pubst.addTopic({
           name: TEST_TOPIC_1,
           eventOnly: true,
           doPrime: true
@@ -327,38 +459,39 @@ describe('Pubst', () => {
 
         pubst.subscribe(TEST_TOPIC_1, handler);
 
+        await flushPromises();
         clock.tick(1);
 
         expect(handler).to.have.been.calledWith(TEST_TOPIC_1);
 
         handler.resetHistory();
 
-        pubst.publish(TEST_TOPIC_1, 'some ignored payload');
+        await pubst.publish(TEST_TOPIC_1, 'some ignored payload');
 
         clock.tick(1);
         expect(handler).to.have.been.calledWith(TEST_TOPIC_1);
         handler.resetHistory();
 
-        pubst.publish(TEST_TOPIC_1);
-        pubst.publish(TEST_TOPIC_1);
-        pubst.publish(TEST_TOPIC_1);
+        await pubst.publish(TEST_TOPIC_1);
+        await pubst.publish(TEST_TOPIC_1);
+        await pubst.publish(TEST_TOPIC_1);
 
         clock.tick(1);
         expect(handler).to.have.been.calledThrice;
       });
 
-      it('is off by default', () => {
+      it('is off by default', async () => {
         const payload = 'a payload';
         const handler = sinon.spy();
 
-        pubst.addTopic({
+        await pubst.addTopic({
           name: TEST_TOPIC_1,
           doPrime: false
         });
 
         pubst.subscribe(TEST_TOPIC_1, handler);
 
-        pubst.publish(TEST_TOPIC_1, payload);
+        await pubst.publish(TEST_TOPIC_1, payload);
 
         clock.tick(1);
 
@@ -367,7 +500,7 @@ describe('Pubst', () => {
 
         handler.resetHistory();
 
-        pubst.publish(TEST_TOPIC_1, payload);
+        await pubst.publish(TEST_TOPIC_1, payload);
 
         clock.tick(1);
 
@@ -376,8 +509,8 @@ describe('Pubst', () => {
     });
 
     describe('doPrime', () => {
-      it('sends current value to new subscribers when on', () => {
-        pubst.addTopics([
+      it('sends current value to new subscribers when on', async () => {
+        await pubst.addTopics([
           {
             name: TEST_TOPIC_1,
             doPrime: true
@@ -390,8 +523,8 @@ describe('Pubst', () => {
 
         const testPayload = 'some test payload';
 
-        pubst.publish(TEST_TOPIC_1, testPayload);
-        pubst.publish(TEST_TOPIC_2, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_2, testPayload);
 
         const handler1 = sinon.spy();
         const handler2 = sinon.spy();
@@ -399,6 +532,7 @@ describe('Pubst', () => {
         pubst.subscribe(TEST_TOPIC_1, handler1);
         pubst.subscribe(TEST_TOPIC_2, handler2);
 
+        await flushPromises();
         clock.tick(1);
 
         expect(handler1).to.have.been.calledOnce;
@@ -407,8 +541,8 @@ describe('Pubst', () => {
         expect(handler2).not.to.have.been.called;
       });
 
-      it('can be overriden', () => {
-        pubst.addTopics([
+      it('can be overriden', async () => {
+        await pubst.addTopics([
           {
             name: TEST_TOPIC_1,
             doPrime: true
@@ -421,8 +555,8 @@ describe('Pubst', () => {
 
         const testPayload = 'some test payload';
 
-        pubst.publish(TEST_TOPIC_1, testPayload);
-        pubst.publish(TEST_TOPIC_2, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_2, testPayload);
 
         const handler1 = sinon.spy();
         const handler2 = sinon.spy();
@@ -436,6 +570,7 @@ describe('Pubst', () => {
           handler: handler2
         });
 
+        await flushPromises();
         clock.tick(1);
 
         expect(handler1).not.to.have.been.called;
@@ -444,8 +579,8 @@ describe('Pubst', () => {
         expect(handler2).to.have.been.calledWith(testPayload);
       });
 
-      it('is on by default', () => {
-        pubst.addTopics([
+      it('is on by default', async () => {
+        await pubst.addTopics([
           {
             name: TEST_TOPIC_1
           }
@@ -453,22 +588,23 @@ describe('Pubst', () => {
 
         const testPayload = 'some test payload';
 
-        pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
 
         const handler = sinon.spy();
 
         pubst.subscribe(TEST_TOPIC_1, handler);
 
+        await flushPromises();
         clock.tick(1);
 
         expect(handler).to.have.been.calledOnce;
         expect(handler).to.have.been.calledWith(testPayload);
       });
 
-      it('sends default value if no other value is available', () => {
+      it('sends default value if no other value is available', async () => {
         const defaultPayload = 'some test payload';
 
-        pubst.addTopics([
+        await pubst.addTopics([
           {
             name: TEST_TOPIC_1,
             doPrime: true,
@@ -479,6 +615,7 @@ describe('Pubst', () => {
 
         pubst.subscribe(TEST_TOPIC_1, handler);
 
+        await flushPromises();
         clock.tick(1);
 
         expect(handler).to.have.been.calledOnce;
@@ -487,8 +624,8 @@ describe('Pubst', () => {
     });
 
     describe('allowRepeats', () => {
-      it('calls subs when the value does not change', () => {
-        pubst.addTopics([
+      it('calls subs when the value does not change', async () => {
+        await pubst.addTopics([
           {
             name: TEST_TOPIC_1,
             allowRepeats: true
@@ -507,13 +644,14 @@ describe('Pubst', () => {
         pubst.subscribe(TEST_TOPIC_1, handler1);
         pubst.subscribe(TEST_TOPIC_2, handler2);
 
+        await flushPromises();
         clock.tick(1);
 
         expect(handler1).not.to.have.been.called;
         expect(handler2).not.to.have.been.called;
 
-        pubst.publish(TEST_TOPIC_1, testPayload);
-        pubst.publish(TEST_TOPIC_2, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_2, testPayload);
 
         clock.tick(1);
 
@@ -523,8 +661,8 @@ describe('Pubst', () => {
         handler1.resetHistory();
         handler2.resetHistory();
 
-        pubst.publish(TEST_TOPIC_1, testPayload);
-        pubst.publish(TEST_TOPIC_2, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_2, testPayload);
 
         clock.tick(1);
 
@@ -532,8 +670,8 @@ describe('Pubst', () => {
         expect(handler2).not.to.have.been.called;
       });
 
-      it('is off by default', () => {
-        pubst.addTopic({
+      it('is off by default', async () => {
+        await pubst.addTopic({
           name: TEST_TOPIC_1
         });
 
@@ -543,21 +681,21 @@ describe('Pubst', () => {
 
         pubst.subscribe(TEST_TOPIC_1, handler);
 
-        pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
         clock.tick(1);
 
-        pubst.publish(TEST_TOPIC_1, testPayload);
-        pubst.publish(TEST_TOPIC_1, testPayload);
-        pubst.publish(TEST_TOPIC_1, testPayload);
-        pubst.publish(TEST_TOPIC_1, testPayload);
-        pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
         clock.tick(1);
 
         expect(handler).to.have.been.calledOnceWith(testPayload, TEST_TOPIC_1);
 
         handler.resetHistory();
 
-        pubst.publish(TEST_TOPIC_1, 'something else');
+        await pubst.publish(TEST_TOPIC_1, 'something else');
 
         clock.tick(1);
 
@@ -565,18 +703,18 @@ describe('Pubst', () => {
 
         handler.resetHistory();
 
-        pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
         clock.tick(1);
-        pubst.publish(TEST_TOPIC_1, testPayload);
-        pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
 
         clock.tick(1);
 
         expect(handler).to.have.been.calledOnceWith(testPayload, TEST_TOPIC_1);
       });
 
-      it('can be overriden', () => {
-        pubst.addTopic({
+      it('can be overriden', async () => {
+        await pubst.addTopic({
           name: TEST_TOPIC_1,
           allowRepeats: false
         });
@@ -590,11 +728,11 @@ describe('Pubst', () => {
           handler
         });
 
-        pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
         clock.tick(1);
 
-        pubst.publish(TEST_TOPIC_1, testPayload);
-        pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
         clock.tick(1);
 
         expect(handler).to.have.been.calledThrice;
@@ -604,72 +742,75 @@ describe('Pubst', () => {
   });
 
   describe('publish & subscribe', () => {
-    it('calls the subscriber if the topic already has a set value', () => {
+    it('calls the subscriber if the topic already has a set value', async () => {
       const testPayload = 'some test payload';
       const handler = sinon.spy();
 
-      pubst.publish(TEST_TOPIC_1, testPayload);
+      await pubst.publish(TEST_TOPIC_1, testPayload);
 
       pubst.subscribe(TEST_TOPIC_1, handler);
 
+      await flushPromises();
       clock.tick(1);
 
       expect(handler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
     });
 
-    it('does not call the subscriber if the topic already has a set value when doPrime is false', () => {
+    it('does not call the subscriber if the topic already has a set value when doPrime is false', async () => {
       const testPayload = 'some test payload';
       const handler = sinon.spy();
 
-      pubst.publish(TEST_TOPIC_1, testPayload);
+      await pubst.publish(TEST_TOPIC_1, testPayload);
 
       pubst.subscribe(TEST_TOPIC_1, {
         doPrime: false,
         handler
       });
 
+      await flushPromises();
       clock.tick(1);
 
       expect(handler).to.have.callCount(0);
 
-      pubst.publish(TEST_TOPIC_1, testPayload);
+      await pubst.publish(TEST_TOPIC_1, testPayload);
 
       clock.tick(1);
 
       expect(handler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
     });
 
-    it('calls the subscriber with the default value if the topic has not been set', () => {
+    it('calls the subscriber with the default value if the topic has not been set', async () => {
       const defaultPayload = 'default payload';
       const handler = sinon.spy();
 
       pubst.subscribe(TEST_TOPIC_1, handler, defaultPayload);
 
+      await flushPromises();
       clock.tick(1);
 
       expect(handler).to.have.been.calledWith(defaultPayload, TEST_TOPIC_1);
     });
 
-    it('does not call subscribers when the same value is published multiple times', () => {
+    it('does not call subscribers when the same value is published multiple times', async () => {
       const testPayload = 'test payload';
       const handler = sinon.spy();
 
       pubst.subscribe(TEST_TOPIC_1, handler);
-      pubst.publish(TEST_TOPIC_1, testPayload);
+      await pubst.publish(TEST_TOPIC_1, testPayload);
 
       clock.tick(1);
 
       expect(handler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
       handler.resetHistory();
 
-      pubst.publish(TEST_TOPIC_1, testPayload);
+      await pubst.publish(TEST_TOPIC_1, testPayload);
 
       clock.tick(1);
 
       expect(handler).not.to.have.been.called;
     });
 
-    it('allows subscriptions to permit values to repeat', () => {
+    it('allows subscriptions to permit values to repeat', async () => {
       const testPayload = 'test payload';
       const handler = sinon.spy();
 
@@ -677,42 +818,42 @@ describe('Pubst', () => {
         allowRepeats: true,
         handler
       });
-      pubst.publish(TEST_TOPIC_1, testPayload);
+      await pubst.publish(TEST_TOPIC_1, testPayload);
 
       clock.tick(1);
 
       expect(handler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
       handler.resetHistory();
 
-      pubst.publish(TEST_TOPIC_1, testPayload);
+      await pubst.publish(TEST_TOPIC_1, testPayload);
 
       clock.tick(1);
 
       expect(handler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
     });
 
-    it('calls the subscriber with the default value if the topic has been set with null', () => {
+    it('calls the subscriber with the default value if the topic has been set with null', async () => {
       const testPayload = 'test payload';
       const defaultPayload = 'default payload';
       const handler = sinon.spy();
 
       pubst.subscribe(TEST_TOPIC_1, handler, defaultPayload);
 
-      pubst.publish(TEST_TOPIC_1, testPayload);
+      await pubst.publish(TEST_TOPIC_1, testPayload);
 
       clock.tick(1);
 
       expect(handler).to.have.been.calledWith(testPayload, TEST_TOPIC_1);
       handler.resetHistory();
 
-      pubst.publish(TEST_TOPIC_1, null);
+      await pubst.publish(TEST_TOPIC_1, null);
 
       clock.tick(1);
 
       expect(handler).to.have.been.calledWith(defaultPayload, TEST_TOPIC_1);
     });
 
-    it('allows subscriptions to be made with config objects', () => {
+    it('allows subscriptions to be made with config objects', async () => {
       const testPayload = 'test payload';
       const defaultPayload = 'default payload';
       const handler1 = sinon.spy();
@@ -725,7 +866,7 @@ describe('Pubst', () => {
 
       pubst.subscribe(TEST_TOPIC_1, handler2, defaultPayload);
 
-      pubst.publish(TEST_TOPIC_1, testPayload);
+      await pubst.publish(TEST_TOPIC_1, testPayload);
 
       clock.tick(1);
 
@@ -734,7 +875,7 @@ describe('Pubst', () => {
       handler1.resetHistory();
       handler2.resetHistory();
 
-      pubst.publish(TEST_TOPIC_1, null);
+      await pubst.publish(TEST_TOPIC_1, null);
 
       clock.tick(1);
 
@@ -742,7 +883,7 @@ describe('Pubst', () => {
       expect(handler2).to.have.been.calledWith(defaultPayload, TEST_TOPIC_1);
     });
 
-    it('calls all the subscribers for a topic', () => {
+    it('calls all the subscribers for a topic', async () => {
       const testPayload = 'test payload';
 
       const topic1Handler1 = sinon.spy();
@@ -755,7 +896,7 @@ describe('Pubst', () => {
       pubst.subscribe(TEST_TOPIC_2, topic2Handler1);
       pubst.subscribe(TEST_TOPIC_2, topic2Handler2);
 
-      pubst.publish(TEST_TOPIC_1, testPayload);
+      await pubst.publish(TEST_TOPIC_1, testPayload);
 
       clock.tick(1);
 
@@ -770,7 +911,7 @@ describe('Pubst', () => {
       topic2Handler1.resetHistory();
       topic2Handler2.resetHistory();
 
-      pubst.publish(TEST_TOPIC_2, testPayload);
+      await pubst.publish(TEST_TOPIC_2, testPayload);
 
       clock.tick(1);
 
@@ -781,7 +922,7 @@ describe('Pubst', () => {
       expect(topic2Handler2).to.have.been.calledWith(testPayload, TEST_TOPIC_2);
     });
 
-    it('allows subscribers to unsunscribe', () => {
+    it('allows subscribers to unsunscribe', async () => {
       const testPayload1 = 'test payload 1';
       const testPayload2 = 'test payload 2';
       const testPayload3 = 'test payload 3';
@@ -792,7 +933,7 @@ describe('Pubst', () => {
       const unsub1 = pubst.subscribe(TEST_TOPIC_1, handler1);
       const unsub2 = pubst.subscribe(TEST_TOPIC_1, handler2);
 
-      pubst.publish(TEST_TOPIC_1, testPayload1);
+      await pubst.publish(TEST_TOPIC_1, testPayload1);
 
       clock.tick(1);
 
@@ -804,7 +945,7 @@ describe('Pubst', () => {
 
       unsub1();
 
-      pubst.publish(TEST_TOPIC_1, testPayload2);
+      await pubst.publish(TEST_TOPIC_1, testPayload2);
 
       clock.tick(1);
 
@@ -816,7 +957,7 @@ describe('Pubst', () => {
 
       unsub2();
 
-      pubst.publish(TEST_TOPIC_1, testPayload3);
+      await pubst.publish(TEST_TOPIC_1, testPayload3);
 
       clock.tick(1);
 
@@ -824,37 +965,41 @@ describe('Pubst', () => {
       expect(handler2).not.to.have.been.called;
     });
 
-    it('sends null if no default was provided and a null was published', () => {
+    it('sends null if no default was provided and a null was published', async () => {
       const originalPayload = 'the original payload';
       const handler = sinon.spy();
 
-      pubst.publish(TEST_TOPIC_1, originalPayload);
+      await pubst.publish(TEST_TOPIC_1, originalPayload);
+
+      await flushPromises();
       clock.tick(1);
 
-      expect(pubst.currentVal(TEST_TOPIC_1)).to.equal(originalPayload);
+      expect(await pubst.currentVal(TEST_TOPIC_1)).to.equal(originalPayload);
 
       pubst.subscribe(TEST_TOPIC_1, handler);
+
+      await flushPromises();
       clock.tick(1);
 
       expect(handler).to.have.been.calledWith(originalPayload, TEST_TOPIC_1);
       handler.resetHistory();
 
-      pubst.publish(TEST_TOPIC_1, null);
+      await pubst.publish(TEST_TOPIC_1, null);
       clock.tick(1);
 
       expect(handler).to.have.been.calledWith(null, TEST_TOPIC_1);
     });
 
-    it('maintains the payload for each scheduled call when changed before the call is made', () => {
+    it('maintains the payload for each scheduled call when changed before the call is made', async () => {
       const payloads = [1, 2, 3, 4, 5];
 
       const handler = sinon.spy();
 
       pubst.subscribe(TEST_TOPIC_1, handler);
 
-      payloads.forEach(payload => {
-        pubst.publish(TEST_TOPIC_1, payload);
-      });
+      for (const payload of payloads) {
+        await pubst.publish(TEST_TOPIC_1, payload);
+      }
 
       clock.tick(1);
 
@@ -866,7 +1011,7 @@ describe('Pubst', () => {
 
     describe('regex subscribers', () => {
 
-      it('allows a subscriber to use a regex for a topic name', () => {
+      it('allows a subscriber to use a regex for a topic name', async () => {
         const specificHandler = sinon.spy();
         const allTestTopicHandler = sinon.spy();
         const anythingHandler = sinon.spy();
@@ -881,9 +1026,9 @@ describe('Pubst', () => {
         pubst.subscribe(/test\.topic\..*/, allTestTopicHandler);
         pubst.subscribe(/.*/, anythingHandler);
 
-        pubst.publish(TEST_TOPIC_1, testPayload1);
-        pubst.publish(TEST_TOPIC_2, testPayload2);
-        pubst.publish(otherTopic, testPayload3);
+        await pubst.publish(TEST_TOPIC_1, testPayload1);
+        await pubst.publish(TEST_TOPIC_2, testPayload2);
+        await pubst.publish(otherTopic, testPayload3);
 
         clock.tick(1);
 
@@ -901,7 +1046,7 @@ describe('Pubst', () => {
         expect(anythingHandler).to.have.been.calledWith(testPayload3, otherTopic);
       });
 
-      it('are primed with ALL existing topics that match', () => {
+      it('are primed with ALL existing topics that match', async () => {
         const specificHandler = sinon.spy();
         const allTestTopicHandler = sinon.spy();
         const anythingHandler = sinon.spy();
@@ -912,16 +1057,18 @@ describe('Pubst', () => {
         const testPayload2 = 'two';
         const testPayload3 = 'something else';
 
-        pubst.publish(TEST_TOPIC_1, testPayload1);
-        pubst.publish(TEST_TOPIC_2, testPayload2);
-        pubst.publish(otherTopic, testPayload3);
+        await pubst.publish(TEST_TOPIC_1, testPayload1);
+        await pubst.publish(TEST_TOPIC_2, testPayload2);
+        await pubst.publish(otherTopic, testPayload3);
 
+        await flushPromises();
         clock.tick(1);
 
         pubst.subscribe(/test\.topic\.one/, specificHandler);
         pubst.subscribe(/test\.topic\..*/, allTestTopicHandler);
         pubst.subscribe(/.*/, anythingHandler);
 
+        await flushPromises();
         clock.tick(1);
 
         expect(specificHandler).to.have.callCount(1);
@@ -938,7 +1085,7 @@ describe('Pubst', () => {
         expect(anythingHandler).to.have.been.calledWith(testPayload3, otherTopic);
       });
 
-      it('can live side by side with string handlers', () => {
+      it('can live side by side with string handlers', async () => {
         const specificHandler = sinon.spy();
         const allTestTopicHandler = sinon.spy();
         const anythingHandler = sinon.spy();
@@ -949,16 +1096,18 @@ describe('Pubst', () => {
         const testPayload2 = 'two';
         const testPayload3 = 'something else';
 
-        pubst.publish(TEST_TOPIC_1, testPayload1);
-        pubst.publish(TEST_TOPIC_2, testPayload2);
-        pubst.publish(otherTopic, testPayload3);
+        await pubst.publish(TEST_TOPIC_1, testPayload1);
+        await pubst.publish(TEST_TOPIC_2, testPayload2);
+        await pubst.publish(otherTopic, testPayload3);
 
+        await flushPromises();
         clock.tick(1);
 
         pubst.subscribe(TEST_TOPIC_1, specificHandler);
         pubst.subscribe(/test\.topic\..*/, allTestTopicHandler);
         pubst.subscribe(/.*/, anythingHandler);
 
+        await flushPromises();
         clock.tick(1);
 
         expect(specificHandler).to.have.callCount(1);
@@ -975,7 +1124,7 @@ describe('Pubst', () => {
         expect(anythingHandler).to.have.been.calledWith(testPayload3, otherTopic);
       });
 
-      it('can unsubscribe', () => {
+      it('can unsubscribe', async () => {
         const anythingHandler = sinon.spy();
 
         const otherTopic = 'ANOTHER_TOPIC!';
@@ -984,9 +1133,9 @@ describe('Pubst', () => {
 
         const unsub = pubst.subscribe(/.*/, anythingHandler);
 
-        pubst.publish(TEST_TOPIC_1, testPayload);
-        pubst.publish(TEST_TOPIC_2, testPayload);
-        pubst.publish(otherTopic, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_2, testPayload);
+        await pubst.publish(otherTopic, testPayload);
 
         clock.tick(1);
 
@@ -1000,14 +1149,14 @@ describe('Pubst', () => {
 
         unsub();
 
-        pubst.publish(otherTopic, testPayload);
+        await pubst.publish(otherTopic, testPayload);
 
         clock.tick(1);
 
         expect(anythingHandler).not.to.have.been.called;
       });
 
-      it('receive the same default for all topics', () => {
+      it('receive the same default for all topics', async () => {
         const anythingHandler = sinon.spy();
 
         const otherTopic = 'ANOTHER_TOPIC!';
@@ -1017,13 +1166,14 @@ describe('Pubst', () => {
 
         pubst.subscribe(/.*/, anythingHandler, testDefault);
 
+        await flushPromises();
         clock.tick(1);
 
         expect(anythingHandler).not.to.have.been.called;
 
-        pubst.publish(TEST_TOPIC_1, testPayload);
-        pubst.publish(TEST_TOPIC_2, testPayload);
-        pubst.publish(otherTopic, testPayload);
+        await pubst.publish(TEST_TOPIC_1, testPayload);
+        await pubst.publish(TEST_TOPIC_2, testPayload);
+        await pubst.publish(otherTopic, testPayload);
 
         clock.tick(1);
 
@@ -1035,9 +1185,9 @@ describe('Pubst', () => {
 
         anythingHandler.resetHistory();
 
-        pubst.publish(TEST_TOPIC_1);
-        pubst.publish(TEST_TOPIC_2);
-        pubst.publish(otherTopic);
+        await pubst.publish(TEST_TOPIC_1);
+        await pubst.publish(TEST_TOPIC_2);
+        await pubst.publish(otherTopic);
 
         clock.tick(1);
 
@@ -1051,7 +1201,7 @@ describe('Pubst', () => {
 
         const newOtherTopic = 'another.new.topic';
 
-        pubst.publish(newOtherTopic, testPayload);
+        await pubst.publish(newOtherTopic, testPayload);
 
         clock.tick(1);
 
@@ -1060,7 +1210,7 @@ describe('Pubst', () => {
 
         anythingHandler.resetHistory();
 
-        pubst.clearAll();
+        await pubst.clearAll();
 
         clock.tick(1);
 
@@ -1076,98 +1226,102 @@ describe('Pubst', () => {
   });
 
   describe('clear', () => {
-    it('clears a topic', () => {
+    it('clears a topic', async () => {
       const testValue = 'some value';
       const testDefault = 'some default';
 
-      pubst.publish(TEST_TOPIC_1, testValue);
+      await pubst.publish(TEST_TOPIC_1, testValue);
 
-      expect(pubst.currentVal(TEST_TOPIC_1)).to.equal(testValue);
+      expect(await pubst.currentVal(TEST_TOPIC_1)).to.equal(testValue);
 
-      pubst.clear(TEST_TOPIC_1);
+      await pubst.clear(TEST_TOPIC_1);
 
-      expect(pubst.currentVal(TEST_TOPIC_1)).to.equal(null);
-      expect(pubst.currentVal(TEST_TOPIC_1, testDefault)).to.equal(testDefault);
+      expect(await pubst.currentVal(TEST_TOPIC_1)).to.equal(null);
+      expect(await pubst.currentVal(TEST_TOPIC_1, testDefault)).to.equal(testDefault);
     });
 
-    it('calls subscribers with null when the topic is cleared and there is no default', () => {
+    it('calls subscribers with null when the topic is cleared and there is no default', async () => {
       const testValue = 'some value';
 
-      pubst.publish(TEST_TOPIC_1, testValue);
+      await pubst.publish(TEST_TOPIC_1, testValue);
 
       const sub = sinon.spy();
 
       pubst.subscribe(TEST_TOPIC_1, sub);
 
+      await flushPromises();
       clock.tick(1);
 
       expect(sub).to.have.been.calledWith(testValue);
       sub.resetHistory();
 
-      pubst.clear(TEST_TOPIC_1);
+      await pubst.clear(TEST_TOPIC_1);
 
       clock.tick(1);
 
       expect(sub).to.have.been.calledWith(null, TEST_TOPIC_1);
     });
 
-    it('calls subscribers with their default when the topic is cleared', () => {
+    it('calls subscribers with their default when the topic is cleared', async () => {
       const testValue = 'some value';
       const testDefault = 'some default';
 
-      pubst.publish(TEST_TOPIC_1, testValue);
+      await pubst.publish(TEST_TOPIC_1, testValue);
 
       const sub = sinon.spy();
 
       pubst.subscribe(TEST_TOPIC_1, sub, testDefault);
 
+      await flushPromises();
       clock.tick(1);
 
       expect(sub).to.have.been.calledWith(testValue);
       sub.resetHistory();
 
-      pubst.clear(TEST_TOPIC_1);
+      await pubst.clear(TEST_TOPIC_1);
 
       clock.tick(1);
 
       expect(sub).to.have.been.calledWith(testDefault, TEST_TOPIC_1);
     });
 
-    it('does not call subscribers on topics that were never published', () => {
+    it('does not call subscribers on topics that were never published', async () => {
 
       const sub = sinon.spy();
 
       pubst.subscribe(TEST_TOPIC_1, sub);
 
-      pubst.clear(TEST_TOPIC_1);
+      await pubst.clear(TEST_TOPIC_1);
 
+      await flushPromises();
       clock.tick(1);
 
       expect(sub).not.to.have.been.called;
     });
 
-    it('does not call subscribers on topics that are already cleared', () => {
+    it('does not call subscribers on topics that are already cleared', async () => {
       const testValue = 'some value';
 
-      pubst.publish(TEST_TOPIC_1, testValue);
+      await pubst.publish(TEST_TOPIC_1, testValue);
 
       const sub = sinon.spy();
 
       pubst.subscribe(TEST_TOPIC_1, sub);
 
+      await flushPromises();
       clock.tick(1);
 
       expect(sub).to.have.been.calledWith(testValue, TEST_TOPIC_1);
       sub.resetHistory();
 
-      pubst.clear(TEST_TOPIC_1);
+      await pubst.clear(TEST_TOPIC_1);
 
       clock.tick(1);
 
       expect(sub).to.have.been.calledWith(null, TEST_TOPIC_1);
       sub.resetHistory();
 
-      pubst.clear(TEST_TOPIC_1);
+      await pubst.clear(TEST_TOPIC_1);
 
       clock.tick(1);
       expect(sub).not.to.have.been.called;
@@ -1175,7 +1329,7 @@ describe('Pubst', () => {
   });
 
   describe('clearAll', () => {
-    it('clears all topics that have been published to', () => {
+    it('clears all topics that have been published to', async () => {
       const testVal1 = 'value 1';
       const testVal2 = 'value 2';
 
@@ -1189,8 +1343,8 @@ describe('Pubst', () => {
       pubst.subscribe(TEST_TOPIC_2, sub2);
       pubst.subscribe(TEST_TOPIC_3, sub3);
 
-      pubst.publish(TEST_TOPIC_1, testVal1);
-      pubst.publish(TEST_TOPIC_2, testVal2);
+      await pubst.publish(TEST_TOPIC_1, testVal1);
+      await pubst.publish(TEST_TOPIC_2, testVal2);
 
       clock.tick(1);
 
@@ -1201,7 +1355,7 @@ describe('Pubst', () => {
       sub1.resetHistory();
       sub2.resetHistory();
 
-      pubst.clearAll();
+      await pubst.clearAll();
 
       clock.tick(1);
 
