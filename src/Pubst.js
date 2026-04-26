@@ -74,7 +74,7 @@ class Pubst {
 
   #store = new InMemoryStore();
   #stringSubs = {};
-  #regexSubs = [];
+  #fnSubs = [];
   #topics = {};
 
   /**
@@ -210,8 +210,15 @@ class Pubst {
     return Array.isArray(this.#stringSubs[topic]) ? this.#stringSubs[topic] : [];
   }
 
-  #getRegexSubsFor(topic) {
-    return this.#regexSubs.filter(sub => Boolean(topic.match(sub.topic)));
+  #getFnSubsFor(topic) {
+    return this.#fnSubs.filter(sub => {
+      try {
+        return sub.topic(topic);
+      } catch (e) {
+        this.#logger.warn('Pubst.subscribe', `Matcher function threw an error for topic '${topic}': ${e.message}`);
+        return false;
+      }
+    });
   }
 
   #addSub(subscriber) {
@@ -220,27 +227,34 @@ class Pubst {
         this.#logger.warn('Pubst.addSub', `Adding a subscriber to non-configured topic '${subscriber.topic}'`);
       }
       this.#stringSubs[subscriber.topic] = this.#getStringSubsFor(subscriber.topic).concat(subscriber);
-    } else if (subscriber.topic instanceof RegExp) {
-      const matchCount = Object.keys(this.#topics).filter(topic => topic.match(subscriber.topic)).length;
+    } else if (typeof subscriber.topic === 'function') {
+      const matchCount = Object.keys(this.#topics).filter(topic => {
+        try {
+          return subscriber.topic(topic);
+        } catch (e) {
+          this.#logger.warn('Pubst.addSub', `Matcher function threw an error while checking topic '${topic}': ${e.message}`);
+          return false;
+        }
+      }).length;
       if (matchCount === 0) {
-        this.#logger.warn('Pubst.addSub', `Adding a RegExp subscriber that matches no configured topics.`);
+        this.#logger.warn('Pubst.addSub', `Adding a function matcher subscriber that matches no configured topics.`);
       }
-      this.#regexSubs.push(subscriber);
+      this.#fnSubs.push(subscriber);
     } else {
-      throw new Error('Unable to add subscriber.  Topic is not a string or a RegExp');
+      throw new Error('Unable to add subscriber.  Topic is not a string or a function');
     }
   }
 
   #removeSub(subscriber) {
     if (typeof subscriber.topic === 'string') {
       this.#stringSubs[subscriber.topic] = this.#getStringSubsFor(subscriber.topic).filter(sub => sub !== subscriber);
-    } else if (subscriber.topic instanceof RegExp) {
-      this.#regexSubs = this.#regexSubs.filter(sub => sub !== subscriber);
+    } else if (typeof subscriber.topic === 'function') {
+      this.#fnSubs = this.#fnSubs.filter(sub => sub !== subscriber);
     }
   }
 
   #allSubsFor(topic) {
-    return this.#getStringSubsFor(topic).concat(this.#getRegexSubsFor(topic));
+    return this.#getStringSubsFor(topic).concat(this.#getFnSubsFor(topic));
   }
 
   #getTopicConfig(topic) {
@@ -293,7 +307,13 @@ class Pubst {
   /**
    * @summary Subscribe to one or more topics
    *
-   * @param {string|RegExp} topic - The topic to receive updates for
+   * @param {string|Function} topic - The topic to receive updates for.
+   *   If a string is provided, the handler will be called for all updates
+   *   for that topic.  If a function is provided, it will be used as a
+   *   matcher: it receives a topic name string and should return a truthy
+   *   value if the subscriber should receive updates for that topic.
+   *   If the matcher function throws an error, the error is logged as a
+   *   warning and the match is skipped.
    * @param {Function|Object} handler - Either your handler function or
    *                                    a subscription configuration object
    * @param {*} default - (Optional) Value to send when topic is empty
@@ -303,11 +323,13 @@ class Pubst {
    *
    * @description
    * <p>
-   * The first argument may be a string or a regular expression.
+   * The first argument may be a string or a matcher function.
    * If a string is provided, the handler will be called for all
-   * updates for that topic.  If a regular expression is provided,
-   * the handler will be called for all topics that match the regular
-   * expression.
+   * updates for that topic.  If a function is provided, it will be
+   * called with each topic name and should return a truthy value to
+   * indicate that the subscriber wishes to receive updates for that topic.
+   * If the matcher function throws, the error is logged as a warning
+   * and the subscriber will not receive the update for that topic.
    * </p>
    *
    * <p>
@@ -365,9 +387,16 @@ class Pubst {
           this.#scheduleCall(subscription, val, topic);
         }
       });
-    } else if (topic instanceof RegExp) {
+    } else if (typeof topic === 'function') {
       this.#store.getTopicNames().then(names => {
-        const matchingNames = names.filter(key => key.match(topic));
+        const matchingNames = names.filter(key => {
+          try {
+            return topic(key);
+          } catch (e) {
+            this.#logger.warn('Pubst.subscribe', `Matcher function threw an error for topic '${key}': ${e.message}`);
+            return false;
+          }
+        });
 
         matchingNames.forEach(key => {
           this.#store.getValue(key).then(storeVal => {

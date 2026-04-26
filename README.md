@@ -14,7 +14,7 @@ Pubst has a few other features worth noting:
 
   + By default, subscribers will not receive subsequent calls when the same value is published to a topic more than once.
 
-  + A subscriber can listen for updates to a given topic, or can provide a regular expression that matches the strings of all topics they would like to receive updates for.
+  + A subscriber can listen for updates to a given topic, or can provide a matcher function that determines which topics the subscriber should receive updates for.
 
   + Pubst supports pluggable store implementations for custom persistence strategies.
 
@@ -25,6 +25,23 @@ Pubst has a few other features worth noting:
   + **Most methods are now async.**  `configure`, `addTopic`, `addTopics`, `publish`, `currentVal`, `clear`, and `clearAll` now return Promises and can be `await`-ed.
 
   + **`subscribe` remains synchronous** and continues to return an unsubscribe function immediately.  Priming of subscribers with existing values happens asynchronously in the background.
+
+## Breaking Changes (v0.7.0)
+
+  + **`subscribe` no longer accepts `RegExp` as the first argument.**  Use a matcher function instead.  A matcher function receives a topic name string and should return a truthy value if the subscriber should receive updates for that topic.  If the matcher throws an error, the error is logged as a warning and the match is skipped.
+
+#### Migrating from RegExp to matcher functions
+
+```js
+// Before (v0.6.0) - RegExp
+pubst.subscribe(/SELECTED\..*/, handler);
+
+// After (v0.7.0) - Wrap the regex in a function
+pubst.subscribe(t => /SELECTED\..*/.test(t), handler);
+
+// Or, take advantage of more expressive matching logic:
+pubst.subscribe(t => t.startsWith('SELECTED.'), handler);
+```
 
 ## Basic Usage
 
@@ -201,9 +218,9 @@ This is likely to result in terrible bugs that are difficult to find.
 
 Registers a subscriber to one or more topics.  This method is synchronous and returns an unsubscribe function immediately.
 
-The first argument may be a string or a regular expression.
+The first argument may be a string or a matcher function.
 If a string is provided, the handler will be called for all updates for that topic.
-If a regular expression is provided, the handler will be called for all topics that match the regular expression.
+If a function is provided, it will be called with each topic name and should return a truthy value to indicate the subscriber wishes to receive updates for that topic.  If the matcher function throws an error, the error is logged as a warning and the match is skipped.
 
 The second argument may be a handler function that is called when updates are published to the topic, or a configuration object for the subscription.
 The configuration object is necessary if you want to change default configuration options for this subscription.
@@ -231,12 +248,12 @@ pubst.subscribe(
 );
 ```
 
-#### Example 2 - Multiple topics
+#### Example 2 - Matcher function for multiple topics
 
 ```js
 pubst.subscribe(
-  /SELECTED.*/, // This matches all strings that start with 'SELECTED'
-  (payload, topic) => {        // A handler function
+  t => t.startsWith('SELECTED.'), // Matches all topics starting with 'SELECTED.'
+  (payload, topic) => {           // A handler function
     if (topic === 'SELECTED.COLOR') {
       doSomethingWithColor(payload);
     } else if (topic === 'SELECTED.FOOD') {
@@ -247,7 +264,18 @@ pubst.subscribe(
 );
 ```
 
-#### Example 3 - Subscription Configuration
+#### Example 3 - Matcher function using a regex
+
+```js
+pubst.subscribe(
+  t => /^user\..*\.updated$/.test(t), // Use regex inside a matcher
+  (payload, topic) => {
+    handleUserUpdate(payload, topic);
+  }
+);
+```
+
+#### Example 4 - Subscription Configuration
 
 ```js
 pubst.subscribe(

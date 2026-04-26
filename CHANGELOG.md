@@ -1,3 +1,13 @@
+## v0.7.0 -
+
+### Breaking Changes
+
+  + `subscribe` no longer accepts `RegExp` as the first argument.  Use a matcher function instead (e.g. `t => /pattern/.test(t)`).
+
+### New Features
+
+  + **Matcher function support for `subscribe`.**  The first argument to `subscribe` can now be a function that receives a topic name and returns a truthy value to determine if the subscriber should receive updates for that topic.  Errors thrown by matcher functions are logged as warnings and the match is skipped.
+
 ## v0.6.0 - Apr 26 2026
 
 ### Breaking Changes

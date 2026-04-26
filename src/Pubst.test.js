@@ -1009,9 +1009,9 @@ describe('Pubst', () => {
       });
     });
 
-    describe('regex subscribers', () => {
+    describe('function matcher subscribers', () => {
 
-      it('allows a subscriber to use a regex for a topic name', async () => {
+      it('allows a subscriber to use a matcher function for a topic', async () => {
         const specificHandler = sinon.spy();
         const allTestTopicHandler = sinon.spy();
         const anythingHandler = sinon.spy();
@@ -1022,9 +1022,9 @@ describe('Pubst', () => {
         const testPayload2 = 'two';
         const testPayload3 = 'something else';
 
-        pubst.subscribe(/test\.topic\.one/, specificHandler);
-        pubst.subscribe(/test\.topic\..*/, allTestTopicHandler);
-        pubst.subscribe(/.*/, anythingHandler);
+        pubst.subscribe(t => t === TEST_TOPIC_1, specificHandler);
+        pubst.subscribe(t => t.startsWith('test.topic.'), allTestTopicHandler);
+        pubst.subscribe(() => true, anythingHandler);
 
         await pubst.publish(TEST_TOPIC_1, testPayload1);
         await pubst.publish(TEST_TOPIC_2, testPayload2);
@@ -1064,9 +1064,9 @@ describe('Pubst', () => {
         await flushPromises();
         clock.tick(1);
 
-        pubst.subscribe(/test\.topic\.one/, specificHandler);
-        pubst.subscribe(/test\.topic\..*/, allTestTopicHandler);
-        pubst.subscribe(/.*/, anythingHandler);
+        pubst.subscribe(t => t === TEST_TOPIC_1, specificHandler);
+        pubst.subscribe(t => t.startsWith('test.topic.'), allTestTopicHandler);
+        pubst.subscribe(() => true, anythingHandler);
 
         await flushPromises();
         clock.tick(1);
@@ -1104,8 +1104,8 @@ describe('Pubst', () => {
         clock.tick(1);
 
         pubst.subscribe(TEST_TOPIC_1, specificHandler);
-        pubst.subscribe(/test\.topic\..*/, allTestTopicHandler);
-        pubst.subscribe(/.*/, anythingHandler);
+        pubst.subscribe(t => t.startsWith('test.topic.'), allTestTopicHandler);
+        pubst.subscribe(() => true, anythingHandler);
 
         await flushPromises();
         clock.tick(1);
@@ -1131,7 +1131,7 @@ describe('Pubst', () => {
 
         const testPayload = 'something else';
 
-        const unsub = pubst.subscribe(/.*/, anythingHandler);
+        const unsub = pubst.subscribe(() => true, anythingHandler);
 
         await pubst.publish(TEST_TOPIC_1, testPayload);
         await pubst.publish(TEST_TOPIC_2, testPayload);
@@ -1164,7 +1164,7 @@ describe('Pubst', () => {
         const testPayload = 'something else';
         const testDefault = 'some default';
 
-        pubst.subscribe(/.*/, anythingHandler, testDefault);
+        pubst.subscribe(() => true, anythingHandler, testDefault);
 
         await flushPromises();
         clock.tick(1);
@@ -1220,6 +1220,105 @@ describe('Pubst', () => {
         expect(anythingHandler).to.have.been.calledWith(testDefault, TEST_TOPIC_2);
         expect(anythingHandler).to.have.been.calledWith(testDefault, otherTopic);
 
+      });
+
+      it('supports regex matching inside a function', async () => {
+        const handler = sinon.spy();
+
+        const otherTopic = 'ANOTHER_TOPIC!';
+
+        const testPayload1 = 'one';
+        const testPayload2 = 'two';
+        const testPayload3 = 'something else';
+
+        pubst.subscribe(t => /test\.topic\..*/.test(t), handler);
+
+        await pubst.publish(TEST_TOPIC_1, testPayload1);
+        await pubst.publish(TEST_TOPIC_2, testPayload2);
+        await pubst.publish(otherTopic, testPayload3);
+
+        clock.tick(1);
+
+        expect(handler).to.have.callCount(2);
+        expect(handler).to.have.been.calledWith(testPayload1, TEST_TOPIC_1);
+        expect(handler).to.have.been.calledWith(testPayload2, TEST_TOPIC_2);
+      });
+
+      it('passes the topic name to the matcher function', async () => {
+        const matcher = sinon.spy(() => true);
+        const handler = sinon.spy();
+
+        pubst.subscribe(matcher, handler);
+
+        await pubst.publish(TEST_TOPIC_1, 'value');
+
+        clock.tick(1);
+
+        expect(matcher).to.have.been.calledWith(TEST_TOPIC_1);
+        expect(handler).to.have.been.calledWith('value', TEST_TOPIC_1);
+      });
+
+      it('logs a warning and skips the match when the matcher throws', async () => {
+        const handler = sinon.spy();
+        const customLogger = { warn: sinon.spy() };
+
+        const p = new Pubst();
+        await p.configure({logger: customLogger});
+
+        pubst.subscribe(() => { throw new Error('boom'); }, handler);
+
+        await pubst.publish(TEST_TOPIC_1, 'value');
+
+        clock.tick(1);
+
+        expect(handler).not.to.have.been.called;
+      });
+
+      it('does not block other subscribers when a matcher throws', async () => {
+        const throwingHandler = sinon.spy();
+        const workingHandler = sinon.spy();
+
+        pubst.subscribe(() => { throw new Error('boom'); }, throwingHandler);
+        pubst.subscribe(() => true, workingHandler);
+
+        await pubst.publish(TEST_TOPIC_1, 'value');
+
+        clock.tick(1);
+
+        expect(throwingHandler).not.to.have.been.called;
+        expect(workingHandler).to.have.been.calledWith('value', TEST_TOPIC_1);
+      });
+
+      it('excludes subscriber when matcher returns falsy', async () => {
+        const handler = sinon.spy();
+
+        pubst.subscribe(t => t === TEST_TOPIC_1, handler);
+
+        await pubst.publish(TEST_TOPIC_1, 'match');
+        await pubst.publish(TEST_TOPIC_2, 'no match');
+
+        clock.tick(1);
+
+        expect(handler).to.have.callCount(1);
+        expect(handler).to.have.been.calledWith('match', TEST_TOPIC_1);
+      });
+
+      it('accepts truthy non-boolean return values from matcher', async () => {
+        const handlerOne = sinon.spy();
+        const handlerStr = sinon.spy();
+        const handlerObj = sinon.spy();
+
+        pubst.subscribe(() => 1, handlerOne);
+        pubst.subscribe(() => 'yes', handlerStr);
+        pubst.subscribe(() => ({}), handlerObj);
+
+        await pubst.publish(TEST_TOPIC_1, 'value');
+
+        clock.tick(1);
+
+        expect(handlerOne).to.have.been.calledWith('value', TEST_TOPIC_1);
+        expect(handlerStr).to.have.been.calledWith('value', TEST_TOPIC_1);
+        expect(handlerObj).to.have.been.calledWith('value', TEST_TOPIC_1);
       });
     });
 
