@@ -274,7 +274,7 @@ class Pubst {
    */
   async publish(topic, payload) {
     if (!this.#topics[topic]) {
-      this.#logger.warn('Pubst.publish', `Received a publish for ${topic} but that topic has not been configured.`);
+      this.#logger.warn('Pubst.publish', `Received a publish for '${topic}', but that topic has not been configured.`);
     }
 
     await this.#store.setValue(topic, payload);

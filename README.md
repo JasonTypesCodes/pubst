@@ -303,76 +303,14 @@ Pubst uses an in-memory store by default, but you can provide your own store imp
 
 A custom store must implement the following async methods:
 
-| Method | Description |
-|---|---|
+| Method                                              | Description                                    |
+|-----------------------------------------------------|------------------------------------------------|
 | `registerTopic(topicName, initialVal, storeConfig)` | Called when a topic is configured via `addTopic`.  `initialVal` is `null` for new topics.  `storeConfig` is the topic-level store configuration passed through from the topic's `storeConfig` option. |
-| `getValue(topicName)` | Retrieve the current value for a topic. |
-| `setValue(topicName, value)` | Store a new value for a topic. |
-| `clearValue(topicName)` | Clear the value for a topic (set to null). |
-| `getTopicNames()` | Return an array of all registered topic names. |
+| `getValue(topicName)`                               | Retrieve the current value for a topic.        |
+| `setValue(topicName, value)`                        | Store a new value for a topic.                 |
+| `clearValue(topicName)`                             | Clear the value for a topic (set to null).     |
+| `getTopicNames()`                                   | Return an array of all registered topic names. |
 
 All methods must return a Promise (or be declared `async`).
 
 The built-in `InMemoryStore` class serves as the reference implementation.
-
-### Example
-
-```js
-import Pubst from 'pubst';
-
-class LocalStorageStore {
-  #prefix;
-
-  constructor(prefix = 'pubst') {
-    this.#prefix = prefix;
-  }
-
-  async registerTopic(topicName, initialVal = null, storeConfig = {}) {
-    const key = storeConfig.key || topicName;
-    const existing = localStorage.getItem(`${this.#prefix}:${key}`);
-    if (existing === null) {
-      localStorage.setItem(`${this.#prefix}:${key}`, JSON.stringify(initialVal));
-    }
-    return { topicName, initialVal, storeConfig };
-  }
-
-  async getValue(topicName) {
-    const raw = localStorage.getItem(`${this.#prefix}:${topicName}`);
-    return raw === null ? undefined : JSON.parse(raw);
-  }
-
-  async setValue(topicName, value = null) {
-    localStorage.setItem(`${this.#prefix}:${topicName}`, JSON.stringify(value));
-    return value;
-  }
-
-  async clearValue(topicName) {
-    localStorage.setItem(`${this.#prefix}:${topicName}`, JSON.stringify(null));
-    return null;
-  }
-
-  async getTopicNames() {
-    const keys = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key.startsWith(`${this.#prefix}:`)) {
-        keys.push(key.slice(this.#prefix.length + 1));
-      }
-    }
-    return keys;
-  }
-}
-
-const pubst = new Pubst();
-
-await pubst.configure({
-  store: new LocalStorageStore('myapp'),
-  topics: [
-    {
-      name: 'user.preferences',
-      default: {},
-      storeConfig: { key: 'user.preferences' }
-    }
-  ]
-});
-```

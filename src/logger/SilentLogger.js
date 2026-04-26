@@ -14,6 +14,22 @@
  *  limitations under the License.
  */
 
-export default class SilentLogger {
+/**
+ * @summary A no-op logger that silently discards all warnings.
+ *
+ * @description
+ * SilentLogger is used by Pubst when `showWarnings` is set to `false`.
+ * It implements the same interface as ConsoleLogger but discards all messages.
+ */
+class SilentLogger {
+
+  /**
+   * @summary Discard a warning message (no-op).
+   *
+   * @param {string} source - The source of the warning.
+   * @param {string} message - The warning message.
+   */
   warn() {}
 }
+
+export default SilentLogger;

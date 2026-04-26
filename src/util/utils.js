@@ -14,26 +14,69 @@
  *  limitations under the License.
  */
 
+/**
+ * @module utils
+ * @summary Internal utility functions used by Pubst.
+ */
+
+/**
+ * @summary Safe `hasOwnProperty` check.
+ *
+ * @param {Object} item - The object to check.
+ * @param {string} key - The property name.
+ * @returns {boolean} `true` if the object has the given own property.
+ */
 function hasOwnProperty(item, key) {
   return Object.prototype.hasOwnProperty.call(item, key);
 }
 
+/**
+ * @summary Check if a value is `undefined`.
+ *
+ * @param {*} input - The value to check.
+ * @returns {boolean} `true` if the value is `undefined`.
+ */
 function isUndefined(input) {
   return typeof input === 'undefined';
 }
 
+/**
+ * @summary Check if a value is defined (not `undefined`).
+ *
+ * @param {*} input - The value to check.
+ * @returns {boolean} `true` if the value is not `undefined`.
+ */
 function isDefined(input) {
   return !isUndefined(input);
 }
 
+/**
+ * @summary Check if a value is not set (`null` or `undefined`).
+ *
+ * @param {*} item - The value to check.
+ * @returns {boolean} `true` if the value is `null` or `undefined`.
+ */
 function isNotSet(item) {
   return item === null || isUndefined(item);
 }
 
+/**
+ * @summary Check if a value is set (not `null` and not `undefined`).
+ *
+ * @param {*} item - The value to check.
+ * @returns {boolean} `true` if the value is neither `null` nor `undefined`.
+ */
 function isSet(item) {
   return !isNotSet(item);
 }
 
+/**
+ * @summary Return a value, falling back to a default if the value is not set.
+ *
+ * @param {*} value - The value to return if set.
+ * @param {*} def - The default to return if `value` is `null` or `undefined`.
+ * @returns {*} The value if set, otherwise the default.
+ */
 function valueOrDefault(value, def) {
   if(isNotSet(value) && isDefined(def)){
     return def;

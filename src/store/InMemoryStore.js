@@ -41,7 +41,7 @@
  * All methods must return a Promise (or be declared async).
  * </p>
  */
-export default class InMemoryStore {
+class InMemoryStore {
 
   #store = {};
 
@@ -114,3 +114,5 @@ export default class InMemoryStore {
     return Promise.resolve(Object.keys(this.#store));
   }
 }
+
+export default InMemoryStore;
