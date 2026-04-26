@@ -1,4 +1,4 @@
-## v0.7.0 -
+## v0.7.0 - Apr 26 2026
 
 ### Breaking Changes
 
@@ -11,6 +11,7 @@
 
 ### Other Changes
 
+  + TypeScript type declarations now generated from JSDoc and included in `dist/types/`.
   + Documentation output moved from `doc/` to `dist/doc/`.
 
 ## v0.6.0 - Apr 26 2026

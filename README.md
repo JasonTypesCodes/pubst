@@ -138,6 +138,21 @@ Browser-ready bundles are included in the `dist/browser/` directory of the npm p
 
 Both unminified (`pubst-browser-{version}.js`) and minified (`pubst-browser-{version}.min.js`) builds are provided, each with a corresponding source map.
 
+## TypeScript
+
+TypeScript type declarations are generated from JSDoc and included in the package.  They are picked up automatically when importing Pubst:
+
+```ts
+import Pubst from 'pubst';
+
+const pubst = new Pubst();
+await pubst.configure({ showWarnings: false });
+
+pubst.subscribe('my.topic', (value: unknown, topic: string) => {
+  console.log(topic, value);
+});
+```
+
 ## API
 
 ### `async configure(configOptions)`

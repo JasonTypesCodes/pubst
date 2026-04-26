@@ -9,7 +9,8 @@ Pubst is a slightly opinionated pub/sub library for JavaScript.  ESM module, Apa
 - `npm test` — Mocha test suite (`mocha src/**/*.test.js src/*.test.js`).
 - `npm run build-docs` — Generate jsdoc HTML (`jsdoc ./src -r -d ./dist/doc`).  Output goes to `dist/doc/`, which is gitignored.
 - `npm run build-browser` — Build browser IIFE bundles via esbuild (`node scripts/build-browser.js`).  Output goes to `dist/browser/`.
-- `npm run prepare` — Clean + build-docs + build-browser.  Runs automatically on `npm install`.
+- `npm run build-types` — Generate TypeScript declaration files from JSDoc (`tsc`).  Output goes to `dist/types/`.
+- `npm run prepare` — Clean + build-docs + build-browser + build-types.  Runs automatically on `npm install`.
 
 ## Code Style & Conventions
 

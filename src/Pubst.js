@@ -66,6 +66,32 @@ function buildConfig(base, extensions) {
 }
 
 /**
+ * @typedef {Object} PubstConfig
+ * @property {Object} [logger] - Logger to send warning messages to.
+ * @property {boolean} [showWarnings] - If logger isn't provided, switches between ConsoleLogger and SilentLogger.
+ * @property {Object} [store] - A store implementation for persisting topic values.
+ * @property {Array<TopicConfig>} [topics] - An array of topic configurations.
+ */
+
+/**
+ * @typedef {Object} TopicConfig
+ * @property {string} name - The name of the topic (REQUIRED).
+ * @property {*} [default] - The default value presented to subscribers when the topic is undefined or null.
+ * @property {boolean} [eventOnly=false] - Set to true if this topic will not have payload data.
+ * @property {boolean} [doPrime=true] - Should new subscribers automatically receive the last published value?
+ * @property {boolean} [allowRepeats=false] - Alert subscribers of all publish events, even if unchanged.
+ * @property {Object} [storeConfig={}] - Store-specific configuration passed to the store's registerTopic method.
+ */
+
+/**
+ * @typedef {Object} SubscriptionConfig
+ * @property {Function} handler - The handler to call when the topic is updated.
+ * @property {*} [default] - Default value for this subscription.
+ * @property {boolean} [doPrime=true] - Should the handler be primed with the last value?
+ * @property {boolean} [allowRepeats=false] - Should the handler be called when the value doesn't change?
+ */
+
+/**
  * @summary A slightly opinionated pub/sub utility for Javascript
  */
 class Pubst {
@@ -97,7 +123,7 @@ class Pubst {
   /**
    * @summary Set Pubst configuration.
    *
-   * @param {Object} config - Your configuration
+   * @param {PubstConfig} userConfig - Your configuration
    *
    * @returns {Promise<void>}
    *
@@ -133,7 +159,7 @@ class Pubst {
   /**
    * @summary Configure a new topic.
    *
-   * @param {Object} newTopicConfig - Topic configuration
+   * @param {TopicConfig} newTopicConfig - Topic configuration
    *
    * @returns {Promise<Object>} Resolves with the result of registering
    *   the topic in the store.
@@ -191,7 +217,7 @@ class Pubst {
   /**
    * @summary Configure new topics.
    *
-   * @param {Array<Object>} newTopicConfigs - Topic configurations
+   * @param {Array<TopicConfig>} topics - Topic configurations
    *
    * @returns {Promise<void>}
    *
@@ -315,9 +341,9 @@ class Pubst {
    *   value if the subscriber should receive updates for that topic.
    *   If the matcher function throws an error, the error is logged as a
    *   warning and the match is skipped.
-   * @param {Function|Object} handler - Either your handler function or
+   * @param {Function|SubscriptionConfig} handler - Either your handler function or
    *                                    a subscription configuration object
-   * @param {*} default - (Optional) Value to send when topic is empty
+   * @param {*} [def] - (Optional) Value to send when topic is empty
    *
    * @returns {Function} - A function that will remove this
    *                       subscription from getting further updates.
@@ -423,7 +449,7 @@ class Pubst {
    * @summary Get the current value of a topic.
    *
    * @param {string} topic - The topic to get the value of.
-   * @param {*} default - (Optional) a value to return if the topic is
+   * @param {*} [def] - (Optional) a value to return if the topic is
    *                      empty.
    * @returns {Promise<*>} - Resolves with the current value or the default
    */

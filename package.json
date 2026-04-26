@@ -3,13 +3,15 @@
   "version": "0.7.0",
   "description": "A slightly opinionated pub/sub event emitter for JavaScript.",
   "main": "src/Pubst.js",
+  "types": "dist/types/Pubst.d.ts",
   "type": "module",
   "scripts": {
     "clean": "shx rm -rf dist",
     "build-docs": "jsdoc ./src -r -d ./dist/doc",
     "build-browser": "node scripts/build-browser.js",
+    "build-types": "tsc",
     "lint": "eslint ./src",
-    "prepare": "npm-run-all clean build-docs build-browser",
+    "prepare": "npm-run-all clean build-docs build-browser build-types",
     "test": "mocha src/**/*.test.js src/*.test.js",
     "verify": "npm-run-all lint test"
   },
@@ -46,6 +48,7 @@
     "npm-run-all": "4.1.5",
     "shx": "0.4.0",
     "sinon": "21.1.2",
-    "sinon-chai": "4.0.1"
+    "sinon-chai": "4.0.1",
+    "typescript": "6.0.3"
   }
 }
