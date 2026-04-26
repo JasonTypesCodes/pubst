@@ -16,6 +16,16 @@ Pubst has a few other features worth noting:
 
   + A subscriber can listen for updates to a given topic, or can provide a regular expression that matches the strings of all topics they would like to receive updates for.
 
+  + Pubst supports pluggable store implementations for custom persistence strategies.
+
+## Breaking Changes (v0.6.0)
+
+  + **The constructor no longer accepts configuration or calls `configure()`.**  You must now create a Pubst instance and then call `await configure()` separately.  This allows the async store setup to be properly awaited.
+
+  + **Most methods are now async.**  `configure`, `addTopic`, `addTopics`, `publish`, `currentVal`, `clear`, and `clearAll` now return Promises and can be `await`-ed.
+
+  + **`subscribe` remains synchronous** and continues to return an unsubscribe function immediately.  Priming of subscribers with existing values happens asynchronously in the background.
+
 ## Basic Usage
 
 While it isn't necessarily required, it is a good idea to configure your Pubst instance and the topics you will use in a single file and then export the instance so that other modules can consume them.  This keeps your configuration and available topics together.
@@ -26,20 +36,25 @@ import Pubst from 'pubst';
 
 const pubst = new Pubst();
 
-pubst.addTopic({
-  name: TOPICS.FAVORITE_COLOR,
-  doPrime: false
-});
+export async function init() {
+  await pubst.configure({
+    topics: [
+      {
+        name: 'FAVORITE_COLOR',
+        doPrime: false
+      }
+    ]
+  });
+}
 
-export {pubst};
-
+export { pubst };
 ```
 
 ```js
 // File1.js
-import {pubst} from './pubst-broker.js';
+import { pubst } from './pubst-broker.js';
 
-pubst.addTopic({
+await pubst.addTopic({
   name: 'NAME',
   default: 'World'
 });
@@ -47,7 +62,7 @@ pubst.addTopic({
 
 ```js
 // File2.js
-import {pubst} from './pubst-broker.js';
+import { pubst } from './pubst-broker.js';
 
 pubst.subscribe('NAME', name => {
   console.log(`Hello ${name}!`);
@@ -63,9 +78,9 @@ When another module publishes 'Jill' on the 'NAME' topic, the subscriber is call
 
 ```js
 // File3.js
-import {pubst} from './pubst-broker.js';
+import { pubst } from './pubst-broker.js';
 
-pubst.publish('NAME', 'Jill');
+await pubst.publish('NAME', 'Jill');
 ```
 
 ```
@@ -74,7 +89,7 @@ Hello Jill!
 
 If the topic is cleared, the subscriber is again called with their default value.
 ```js
-pubst.clear('NAME');
+await pubst.clear('NAME');
 ```
 
 ```
@@ -85,19 +100,23 @@ A subscriber is free to override the default value for their topics.
 
 ## API
 
-### `configure(configOptions)`
+### `async configure(configOptions)`
 
-Sets Pubst configuration.
+Sets Pubst configuration.  Must be called after construction.
 
 #### Available options:
 
   + `showWarnings` (default: true) - Show warnings in the console.
+  + `logger` (default: ConsoleLogger) - A custom logger to send warning messages to.  If provided, `showWarnings` is ignored.
+  + `store` (default: InMemoryStore) - A custom store implementation for persisting topic values.  See [Custom Stores](#custom-stores) for details.
   + `topics` - An array of topic configurations.
 
 #### Example
 
 ```js
-pubst.configure({
+const pubst = new Pubst();
+
+await pubst.configure({
   showWarnings: false,
   topics: [
     {
@@ -111,9 +130,9 @@ pubst.configure({
 });
 ```
 
-### `addTopic(topicConfig)` or `addTopics(topicConfigArrays)`
+### `async addTopic(topicConfig)` or `async addTopics(topicConfigArrays)`
 
-Sets the configuration for a new topic.
+Sets the configuration for a new topic.  Registers the topic in the store.
 
 #### Available options:
 
@@ -125,40 +144,22 @@ Sets the configuration for a new topic.
     + This can be overridden by subscribers.
   + `allowRepeats` (default: false) - Alert subscribers of all publish events, even if the value is equal (by strict comparison) to the last value sent.
     + This can be overridden by subscribers.
-  + `validator` - A validation function to assert that published values are valid before they are sent to subscribers.
+  + `storeConfig` (default: {}) - Store-specific configuration that is passed through to the store's `registerTopic` method.  This allows custom store implementations to receive topic-level configuration.  The InMemoryStore ignores this value.
 
 #### Examples
 
 ```js
-pubst.addTopics([
+await pubst.addTopics([
   {
     name: 'game.started',
     default: false,
-    doPrime: true,
-    validator: payload => {
-      const valid = typeof payload === 'boolean';
-      if (!valid) {
-        return {
-          valid,
-          messages: [
-            'Value must be a boolean'
-          ]
-        };
-      }
-
-      return {
-        valid
-      };
-    }
+    doPrime: true
   },
   {
     name: 'player.guess',
     default: -1,
     allowRepeats: true,
-    doPrime: false,
-    validator: payload => ({
-      valid: typeof payload === 'number'
-    })
+    doPrime: false
   },
   {
     name: 'player.won',
@@ -167,23 +168,25 @@ pubst.addTopics([
   }
 ]);
 
-pubst.addTopic({
+await pubst.addTopic({
   name: 'player.name',
   default: 'Player 1'
 });
 ```
 
-### `publish(topic, payload)`
+### `async publish(topic, payload)`
 
 Publishes a value to a topic.
 Topic names are expected to be strings.
 Payloads should be treated as immutable.
 
+While `publish` is async, its resolution is not based on all subscribers being called.  It resolves when the value to publish has been safely stored.  For performance reasons, calling subscribers remains an asynchronous action.
+
 #### Examples
 
 ```js
-pubst.publish('SELECTED.COLOR', 'blue');
-pubst.publish('current.user', {
+await pubst.publish('SELECTED.COLOR', 'blue');
+await pubst.publish('current.user', {
   name: 'Some User',
   permissions: [
     'BORING.THINGS.VIEWER'
@@ -196,7 +199,7 @@ This is likely to result in terrible bugs that are difficult to find.
 
 ### `subscribe(topic, handler|subscriptionConfig[, defaultValue])`
 
-Registers a subscriber to one or more topics
+Registers a subscriber to one or more topics.  This method is synchronous and returns an unsubscribe function immediately.
 
 The first argument may be a string or a regular expression.
 If a string is provided, the handler will be called for all updates for that topic.
@@ -213,6 +216,8 @@ Available options are:
 
 The handler will be called on topic updates.
 It will be passed the new value of the topic as the first argument, and the name of the topic as the second argument.
+
+**Note:** Priming of subscribers with existing store values happens asynchronously.  The handler will be called after the store read resolves.
 
 #### Example 1 - Basic usage
 
@@ -260,7 +265,7 @@ pubst.subscribe(
 );
 ```
 
-### `currentVal(topic[, defaultValue])`
+### `async currentVal(topic[, defaultValue])`
 
 Gets the current value of a topic.
 If a defaultValue is provided and the topic is currently `undefined` or `null`, the defaultValue will be returned.
@@ -268,10 +273,10 @@ If a defaultValue is provided and the topic is currently `undefined` or `null`, 
 #### Example
 
 ```js
-  const color = pubst.currentVal('SELECTED.COLOR', 'red');
+  const color = await pubst.currentVal('SELECTED.COLOR', 'red');
 ```
 
-### `clear(topic)`
+### `async clear(topic)`
 
 Clears a given topic by publishing a `null` to it.
 Subscribers that provided a default value will receive their default.
@@ -279,22 +284,33 @@ Subscribers that provided a default value will receive their default.
 #### Example
 
 ```js
-pubst.clear('SELECTED.COLOR');
+await pubst.clear('SELECTED.COLOR');
 ```
 
-### `clearAll()`
+### `async clearAll()`
 
 Clears all known topics.
 
 #### Example
 
 ```js
-pubst.clearAll();
+await pubst.clearAll();
 ```
 
-## Future Plans
+## Custom Stores
 
-In the not-so-far future I would like to:
+Pubst uses an in-memory store by default, but you can provide your own store implementation for custom persistence strategies (e.g. localStorage, IndexedDB, a remote API, etc.).
 
-  1. Add hooks for persistence strategies.
-  2. Experiment with creating a React library that makes linking topics with props mostly painless.
+A custom store must implement the following async methods:
+
+| Method                                              | Description                                    |
+|-----------------------------------------------------|------------------------------------------------|
+| `registerTopic(topicName, initialVal, storeConfig)` | Called when a topic is configured via `addTopic`.  `initialVal` is `null` for new topics.  `storeConfig` is the topic-level store configuration passed through from the topic's `storeConfig` option. |
+| `getValue(topicName)`                               | Retrieve the current value for a topic.        |
+| `setValue(topicName, value)`                        | Store a new value for a topic.                 |
+| `clearValue(topicName)`                             | Clear the value for a topic (set to null).     |
+| `getTopicNames()`                                   | Return an array of all registered topic names. |
+
+All methods must return a Promise (or be declared `async`).
+
+The built-in `InMemoryStore` class serves as the reference implementation.

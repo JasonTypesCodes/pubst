@@ -1,3 +1,25 @@
+## v0.6.0 - Apr 26 2026
+
+### Breaking Changes
+
+  + The constructor no longer accepts configuration or calls `configure()`.  Consumers must now create a Pubst instance and then `await configure()` separately.
+  + `configure`, `addTopic`, `addTopics`, `publish`, `currentVal`, `clear`, and `clearAll` are now async and return Promises.
+  + `subscribe` remains synchronous.  Priming of subscribers with existing values now happens asynchronously.
+  + Removed the `validator` topic configuration option.
+
+### New Features
+
+  + **Pluggable store support.**  Pubst now delegates value storage to a configurable store implementation.  A custom store can be provided via the `store` option in `configure()`.  The built-in `InMemoryStore` is used by default.
+  + **`storeConfig` topic option.**  Topic configurations now accept a `storeConfig` property that is passed through to the store's `registerTopic` method, allowing custom stores to receive topic-level configuration.
+  + **`showWarnings` configuration option re-added.**  Setting `showWarnings: false` in `configure()` suppresses console warnings without requiring a custom logger.
+
+### Other Changes
+
+  + Extracted logging behavior to `ConsoleLogger` and `SilentLogger` classes, with support for custom logger implementations via the `logger` configuration option.
+  + Logger interface updated to accept a source identifier (e.g. `'Pubst.publish'`) alongside the message.
+  + Added Apache 2.0 license headers to all source files.
+  + Dependency updates.
+
 ## v0.5.3 - Apr 11 2026
   + Fixes bug where not all usages of warn had been updated to use the private method
   + Dependency updates.

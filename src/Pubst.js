@@ -3,7 +3,11 @@ import {
   isDefined,
   isSet,
   valueOrDefault
-} from "./utils.js";
+} from "./util/utils.js";
+
+import ConsoleLogger from "./logger/ConsoleLogger.js";
+import SilentLogger from "./logger/SilentLogger.js";
+import InMemoryStore from "./store/InMemoryStore.js";
 
 /**
  *  Pubst - A slightly opinionated pub/sub library for JavaScript.
@@ -28,22 +32,13 @@ import {
  * @description A slightly opinionated pub/sub library for JavaScript.
  */
 
-const VALIDATION_SUCCESS = {
-  valid: true,
-  messages: []
-};
-
-function everythingIsAwesome() {
-  return VALIDATION_SUCCESS;
-}
-
 const DEFAULT_TOPIC_CONFIG = {
   name: '',
   default: undefined,
   eventOnly: false,
   doPrime: true,
   allowRepeats: false,
-  validator: everythingIsAwesome
+  storeConfig: {}
 };
 
 const ALLOWED_SUB_PROPS = [
@@ -70,44 +65,32 @@ function buildConfig(base, extensions) {
   return result;
 }
 
-function buildValidationErrorMessage(topicName, validationMessages, payload) {
-  let messages = '';
-  if (Array.isArray(validationMessages) && validationMessages.length > 0) {
-    const s = validationMessages.length === 1 ? '' : 's';
-    messages = `Message${s}:\n  ${validationMessages.join('\n  ')}`;
-  }
-
-  const payloadString = 'Received Payload:\n  ' + JSON.stringify(payload, null, 2);
-
-  return `Validation failed for topic '${topicName}'.\n ${messages}\n ${payloadString}`;
-}
-
 /**
  * @summary A slightly opinionated pub/sub utility for Javascript
  */
 class Pubst {
 
-  #config = {
-    showWarnings: true
-  };
+  #logger = new ConsoleLogger();
 
-  #store = {};
+  #store = new InMemoryStore();
   #stringSubs = {};
   #regexSubs = [];
   #topics = {};
 
-  #warn(...messages) {
-    if (this.#config.showWarnings) {
-      console.warn('WARNING:', ...messages);
-    }
-  }
-
   /**
    * @summary Creates a new Pubst instance.
-   * @param {Object} userConfig  - (Optional) - Configuration for this instance
+   *
+   * @description
+   * <p>
+   * Creates a new Pubst instance.  After creation, call `await configure()`
+   * to set up the instance with your desired configuration.
+   * </p>
+   *
+   * @example
+   * const pubst = new Pubst();
+   * await pubst.configure({ showWarnings: false });
    */
-  constructor(userConfig = {}) {
-    this.configure(userConfig);
+  constructor() {
   }
 
   /**
@@ -115,24 +98,34 @@ class Pubst {
    *
    * @param {Object} config - Your configuration
    *
+   * @returns {Promise<void>}
+   *
    * @description
    * <p>
    * Available options are:
    *  <ul>
-   *    <li>`showWarnings` (default: true) - Show warnings in the console.</li>
+   *    <li>`logger` (default: ConsoleLogger) - Logger to send warning messages to.</li>
+   *    <li>`showWarnings` - If logger isn't provided, this option switches between the use of ConsoleLogger and SilentLogger</li>
+   *    <li>`store` (default: InMemoryStore) - A store implementation for persisting topic values.
+   *        Custom stores must implement the same async interface as InMemoryStore:
+   *        `registerTopic`, `getValue`, `setValue`, `clearValue`, and `getTopicNames`.</li>
    *    <li>`topics` - An array of topic configurations. (See: `addTopic` for topic configuration options)</li>
    *  </ul>
    * </p>
    */
-  configure(userConfig = {}) {
-    for (const key in userConfig) {
-      if (hasOwnProperty(this.#config, key)) {
-        this.#config[key] = userConfig[key];
-      }
+  async configure(userConfig = {}) {
+    if (userConfig.logger) {
+      this.#logger = userConfig.logger
+    } else if (hasOwnProperty(userConfig, 'showWarnings') && !userConfig.showWarnings) {
+      this.#logger = new SilentLogger();
+    }
+
+    if (userConfig.store) {
+      this.#store = userConfig.store;
     }
 
     if (Array.isArray(userConfig.topics)) {
-      this.addTopics(userConfig.topics);
+      await this.addTopics(userConfig.topics);
     }
   }
 
@@ -140,6 +133,9 @@ class Pubst {
    * @summary Configure a new topic.
    *
    * @param {Object} newTopicConfig - Topic configuration
+   *
+   * @returns {Promise<Object>} Resolves with the result of registering
+   *   the topic in the store.
    *
    * @description
    * <p>
@@ -165,21 +161,14 @@ class Pubst {
    *      This can be overridden by subscribers.
    *    </li>
    *    <li>
-   *      `validator` - Validation function to assert that published values are valid before sent to subscribers.
-   *      Function will be called with each published payload.
-   *      If a payload fails validation, an error will be thrown during the `publish` call.
-   *      The function should return something like:<br/>
-   *      <code>
-   *        {
-   *          valid: false,
-   *          messages: ['Message 1', 'Message 2']
-   *        }
-   *      </code>
+   *      `storeConfig` (default: {}) - Store-specific configuration that is passed through to the store's
+   *      `registerTopic` method.  This allows custom store implementations to receive topic-level
+   *      configuration (e.g. persistence keys, TTL settings, etc.).
    *    </li>
    *  </ul>
    * </p>
    */
-  addTopic(newTopicConfig) {
+  async addTopic(newTopicConfig) {
     const topic = buildConfig(DEFAULT_TOPIC_CONFIG, newTopicConfig);
 
     if (!topic.name) {
@@ -187,20 +176,15 @@ class Pubst {
     }
 
     if (this.#topics[topic.name]) {
-      this.#warn(`The '${topic.name}' topic has already been configured.  The previous configuration will be overwritten.`);
-    }
-
-    if (isDefined(topic.default)) {
-      const defaultValidationResult = topic.validator(topic.default);
-      if (!defaultValidationResult.valid) {
-        this.#warn(`'${topic.name}' has been configured with a default value that does not pass validation.
-  Complete message:
-  ${buildValidationErrorMessage(topic.name, defaultValidationResult.messages, topic.default)}`);
-      }
+      this.#logger.warn(
+        'Pubst.addTopic',
+        `The '${topic.name}' topic has already been configured.  The previous configuration will be overwritten.`
+      );
     }
 
     this.#topics[topic.name] = topic;
 
+    return await this.#store.registerTopic(topic.name, null, topic.storeConfig);
   }
 
   /**
@@ -208,15 +192,18 @@ class Pubst {
    *
    * @param {Array<Object>} newTopicConfigs - Topic configurations
    *
+   * @returns {Promise<void>}
+   *
    * @description
    * <p>
    * Allows you to configure new topics.  This will call `addTopic` with each item passed.
+   * Topics are registered sequentially.
    * For available options, see `addTopic`.
    */
-  addTopics(topics) {
-    topics.forEach(topic => {
-      this.addTopic(topic);
-    });
+  async addTopics(topics) {
+    for (const topic of topics) {
+      await this.addTopic(topic);
+    }
   }
 
   #getStringSubsFor(topic) {
@@ -230,13 +217,13 @@ class Pubst {
   #addSub(subscriber) {
     if (typeof subscriber.topic === 'string') {
       if (!this.#topics[subscriber.topic]) {
-        this.#warn(`Adding a subscriber to non-configured topic '${subscriber.topic}'`);
+        this.#logger.warn('Pubst.addSub', `Adding a subscriber to non-configured topic '${subscriber.topic}'`);
       }
       this.#stringSubs[subscriber.topic] = this.#getStringSubsFor(subscriber.topic).concat(subscriber);
     } else if (subscriber.topic instanceof RegExp) {
       const matchCount = Object.keys(this.#topics).filter(topic => topic.match(subscriber.topic)).length;
       if (matchCount === 0) {
-        this.#warn(`Adding a RegExp subscriber that matches no configured topics.`);
+        this.#logger.warn('Pubst.addSub', `Adding a RegExp subscriber that matches no configured topics.`);
       }
       this.#regexSubs.push(subscriber);
     } else {
@@ -282,31 +269,23 @@ class Pubst {
    *
    * @param {string} topic - The topic to publish to
    * @param {*} payload The payload to publish
+   *
+   * @returns {Promise<void>}
    */
-  publish(topic, payload) {
+  async publish(topic, payload) {
     if (!this.#topics[topic]) {
-      this.#warn(`Received a publish for ${topic} but that topic has not been configured.`);
+      this.#logger.warn('Pubst.publish', `Received a publish for '${topic}', but that topic has not been configured.`);
     }
 
-    const topicConfig = this.#getTopicConfig(topic);
-
-    if (!topicConfig.eventOnly) {
-      const validationResult = topicConfig.validator(payload);
-
-      if (!validationResult || !validationResult.valid) {
-        const messages = validationResult ? validationResult.messages : [];
-        throw new Error(buildValidationErrorMessage(topic, messages, payload));
-      }
-    }
-
-    this.#store[topic] = payload;
+    await this.#store.setValue(topic, payload);
+    const storedValue = await this.#store.getValue(topic);
     const subs = this.#allSubsFor(topic);
 
     if (subs.length === 0) {
-      this.#warn(`There are no subscribers that match '${topic}'!`);
+      this.#logger.warn('Pubst.publish', `There are no subscribers that match '${topic}'!`);
     } else {
       subs.forEach(sub => {
-        this.#scheduleCall(sub, this.#store[topic], topic);
+        this.#scheduleCall(sub, storedValue, topic);
       });
     }
   }
@@ -350,6 +329,12 @@ class Pubst {
    * the new value of the topic as the first argument, and the name of
    * the topic as the second argument.
    * </p>
+   *
+   * <p>
+   * Note: Subscribe is synchronous and returns an unsubscribe function
+   * immediately.  Priming of subscribers with existing values happens
+   * asynchronously via the store.
+   * </p>
    */
   subscribe(topic, handler, def) {
     let subscription;
@@ -369,30 +354,35 @@ class Pubst {
 
     this.#addSub(subscription);
 
-    let stored;
-
     if (typeof topic === 'string') {
-      stored = [{
-        topic,
-        val: this.currentVal(topic, def)
-      }];
+      this.#store.getValue(topic).then(storeVal => {
+        const topicConfig = this.#getTopicConfig(topic);
+        const defToUse = isDefined(def) ? def : topicConfig.default;
+        const val = valueOrDefault(storeVal, defToUse);
+        const doPrime = hasOwnProperty(subscription, 'doPrime') ? subscription.doPrime : topicConfig.doPrime;
+
+        if (doPrime && (topicConfig.eventOnly || isSet(val))) {
+          this.#scheduleCall(subscription, val, topic);
+        }
+      });
     } else if (topic instanceof RegExp) {
-      stored = Object.keys(this.#store).filter(key => key.match(topic)).map(key => {
-        return {
-          topic: key,
-          val: this.currentVal(key, def)
-        };
+      this.#store.getTopicNames().then(names => {
+        const matchingNames = names.filter(key => key.match(topic));
+
+        matchingNames.forEach(key => {
+          this.#store.getValue(key).then(storeVal => {
+            const topicConfig = this.#getTopicConfig(key);
+            const defToUse = isDefined(def) ? def : topicConfig.default;
+            const val = valueOrDefault(storeVal, defToUse);
+            const doPrime = hasOwnProperty(subscription, 'doPrime') ? subscription.doPrime : topicConfig.doPrime;
+
+            if (doPrime && (topicConfig.eventOnly || isSet(val))) {
+              this.#scheduleCall(subscription, val, key);
+            }
+          });
+        });
       });
     }
-
-    stored.forEach(item => {
-      const topicConfig = this.#getTopicConfig(item.topic);
-      const doPrime = hasOwnProperty(subscription, 'doPrime') ? subscription.doPrime : topicConfig.doPrime;
-
-      if (doPrime && (topicConfig.eventOnly || isSet(item.val))) {
-        this.#scheduleCall(subscription, item.val, item.topic);
-      }
-    });
 
     return () => {
       this.#removeSub(subscription);
@@ -405,11 +395,12 @@ class Pubst {
    * @param {string} topic - The topic to get the value of.
    * @param {*} default - (Optional) a value to return if the topic is
    *                      empty.
-   * @returns {*} - The current value or the default
+   * @returns {Promise<*>} - Resolves with the current value or the default
    */
-  currentVal(topic, def) {
+  async currentVal(topic, def) {
     const defToUse = isDefined(def) ? def : this.#getTopicConfig(topic).default;
-    return valueOrDefault(this.#store[topic], defToUse);
+    const storeVal = await this.#store.getValue(topic);
+    return valueOrDefault(storeVal, defToUse);
   }
 
   /**
@@ -417,21 +408,27 @@ class Pubst {
    *
    * @param {string} topic - The topic to clear
    *
+   * @returns {Promise<void>}
+   *
    * @description Clears the topic by publishing a `null` to it.
    */
-  clear(topic) {
-    if (hasOwnProperty(this.#store, topic)) {
-      this.publish(topic, null);
+  async clear(topic) {
+    const topicNames = await this.#store.getTopicNames();
+    if (topicNames.includes(topic)) {
+      await this.publish(topic, null);
     }
   }
 
   /**
    * @summary Clears all known topics.
+   *
+   * @returns {Promise<void>}
    */
-  clearAll() {
-    Object.keys(this.#store).forEach(topic => {
-      this.clear(topic);
-    });
+  async clearAll() {
+    const topicNames = await this.#store.getTopicNames();
+    for (const topic of topicNames) {
+      await this.clear(topic);
+    }
   }
 }
 
