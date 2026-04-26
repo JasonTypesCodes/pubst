@@ -18,8 +18,6 @@ import * as chai from 'chai';
 import Pubst from './Pubst.js';
 import sinonChai from 'sinon-chai';
 import sinon from 'sinon';
-import SilentLogger from './logger/SilentLogger.js';
-
 chai.use(sinonChai);
 
 const expect = chai.expect;
@@ -33,11 +31,68 @@ describe('Pubst', () => {
 
   beforeEach(() => {
     clock = sinon.useFakeTimers();
-    pubst = new Pubst({logger: new SilentLogger()});
+    pubst = new Pubst({showWarnings: false});
   });
 
   afterEach(() => {
     clock.restore();
+  });
+
+  describe('showWarnings', () => {
+    let warnSpy;
+
+    afterEach(() => {
+      if (warnSpy) {
+        warnSpy.restore();
+        warnSpy = null;
+      }
+    });
+
+    it('suppresses warnings when showWarnings is false', () => {
+      warnSpy = sinon.spy(console, 'warn');
+      const p = new Pubst({showWarnings: false});
+
+      p.publish('unconfigured.topic', 'value');
+
+      clock.tick(1);
+
+      expect(warnSpy).not.to.have.been.called;
+    });
+
+    it('shows warnings by default', () => {
+      warnSpy = sinon.spy(console, 'warn');
+      const p = new Pubst();
+
+      p.publish('unconfigured.topic', 'value');
+
+      clock.tick(1);
+
+      expect(warnSpy).to.have.been.called;
+    });
+
+    it('uses explicit logger over showWarnings', () => {
+      warnSpy = sinon.spy(console, 'warn');
+      const customLogger = { warn: sinon.spy() };
+      const p = new Pubst({logger: customLogger, showWarnings: false});
+
+      p.publish('unconfigured.topic', 'value');
+
+      clock.tick(1);
+
+      expect(customLogger.warn).to.have.been.called;
+      expect(warnSpy).not.to.have.been.called;
+    });
+
+    it('shows warnings when showWarnings is true', () => {
+      warnSpy = sinon.spy(console, 'warn');
+      const p = new Pubst({showWarnings: true});
+
+      p.publish('unconfigured.topic', 'value');
+
+      clock.tick(1);
+
+      expect(warnSpy).to.have.been.called;
+    });
   });
 
   describe('currentVal', () => {

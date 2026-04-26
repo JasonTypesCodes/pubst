@@ -6,6 +6,7 @@ import {
 } from "./util/utils.js";
 
 import ConsoleLogger from "./logger/ConsoleLogger.js";
+import SilentLogger from "./logger/SilentLogger.js";
 
 /**
  *  Pubst - A slightly opinionated pub/sub library for JavaScript.
@@ -92,6 +93,7 @@ class Pubst {
    * Available options are:
    *  <ul>
    *    <li>`logger` (default: ConsoleLogger) - Logger to send warning messages to.</li>
+   *    <li>`showWarnings` - If logger isn't provided, this option switches between the use of ConsoleLogger and SilentLogger</li>
    *    <li>`topics` - An array of topic configurations. (See: `addTopic` for topic configuration options)</li>
    *  </ul>
    * </p>
@@ -99,6 +101,8 @@ class Pubst {
   configure(userConfig = {}) {
     if (userConfig.logger) {
       this.#logger = userConfig.logger
+    } else if (hasOwnProperty(userConfig, 'showWarnings') && !userConfig.showWarnings) {
+      this.#logger = new SilentLogger();
     }
 
     if (Array.isArray(userConfig.topics)) {
