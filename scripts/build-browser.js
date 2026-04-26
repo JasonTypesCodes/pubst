@@ -32,11 +32,12 @@ await esbuild.build({
   outfile: `dist/browser/pubst-browser-${version}.js`,
 });
 
+console.log(`Built dist/browser/pubst-browser-${version}.js`);
+
 await esbuild.build({
   ...common,
   outfile: `dist/browser/pubst-browser-${version}.min.js`,
   minify: true,
 });
 
-console.log(`Built dist/browser/pubst-browser-${version}.js`);
 console.log(`Built dist/browser/pubst-browser-${version}.min.js`);
