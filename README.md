@@ -37,7 +37,7 @@ pubst.subscribe(t => t.startsWith('SELECTED.'), handler);
 
 ## Breaking Changes (v0.6.0)
 
-  + **The constructor no longer accepts configuration or calls `configure()`.**  You must now create a Pubst instance and then call `await configure()` separately.  This allows the async store setup to be properly awaited.
+  + **The constructor no longer accepts configuration or calls `configure()`.**  The instance is ready to use immediately with default settings.  Call `await configure()` if you need to customize the logger, store, or pre-register topics.
 
   + **Most methods are now async.**  `configure`, `addTopic`, `addTopics`, `publish`, `currentVal`, `clear`, and `clearAll` now return Promises and can be `await`-ed.
 
@@ -114,6 +114,29 @@ Hello World!
 ```
 
 A subscriber is free to override the default value for their topics.
+
+## Browser Usage
+
+Browser-ready bundles are included in the `dist/browser/` directory of the npm package.  Include the script via a `<script>` tag and `window.pubst` will be available as a pre-instantiated Pubst instance.
+
+```html
+<script src="pubst-browser-0.7.0.min.js"></script>
+<script>
+  (async () => {
+    await pubst.configure({showWarnings: false});
+
+    pubst.subscribe('my.topic', value => {
+      console.log('Received:', value);
+    });
+
+    await pubst.publish('my.topic', 'hello');
+  })();
+</script>
+```
+
+**Note:** If you need to customize the instance (e.g. suppress warnings, provide a custom store, or pre-register topics), call `await pubst.configure(...)` before use.  Otherwise, the instance is ready to use immediately.
+
+Both unminified (`pubst-browser-{version}.js`) and minified (`pubst-browser-{version}.min.js`) builds are provided, each with a corresponding source map.
 
 ## API
 

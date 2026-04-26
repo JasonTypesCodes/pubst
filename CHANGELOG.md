@@ -7,6 +7,11 @@
 ### New Features
 
   + **Matcher function support for `subscribe`.**  The first argument to `subscribe` can now be a function that receives a topic name and returns a truthy value to determine if the subscriber should receive updates for that topic.  Errors thrown by matcher functions are logged as warnings and the match is skipped.
+  + **Browser-ready IIFE bundles** now included in `dist/browser/` (`pubst-browser-{version}.js` and `pubst-browser-{version}.min.js` with source maps).  The bundle attaches a pre-instantiated Pubst to `window.pubst`.
+
+### Other Changes
+
+  + Documentation output moved from `doc/` to `dist/doc/`.
 
 ## v0.6.0 - Apr 26 2026
 

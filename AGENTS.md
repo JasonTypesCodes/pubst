@@ -7,8 +7,9 @@ Pubst is a slightly opinionated pub/sub library for JavaScript.  ESM module, Apa
 - `npm run verify` — Lint + test.  This is the CI validation command.  Run this to confirm changes are correct.
 - `npm run lint` — ESLint only (`eslint ./src`).
 - `npm test` — Mocha test suite (`mocha src/**/*.test.js src/*.test.js`).
-- `npm run build-docs` — Generate jsdoc HTML (`jsdoc ./src -r -d ./doc`).  Output goes to `doc/`, which is gitignored.
-- `npm run prepare` — Clean + build-docs.  Runs automatically on `npm install`.
+- `npm run build-docs` — Generate jsdoc HTML (`jsdoc ./src -r -d ./dist/doc`).  Output goes to `dist/doc/`, which is gitignored.
+- `npm run build-browser` — Build browser IIFE bundles via esbuild (`node scripts/build-browser.js`).  Output goes to `dist/browser/`.
+- `npm run prepare` — Clean + build-docs + build-browser.  Runs automatically on `npm install`.
 
 ## Code Style & Conventions
 
@@ -40,11 +41,12 @@ Pubst is a slightly opinionated pub/sub library for JavaScript.  ESM module, Apa
 - All new code must include appropriate unit tests.
 - No new linting errors may be introduced.  Run `npm run lint` to check.
 - ESLint config extends `eslint:recommended` — no additional plugins or custom rules beyond what is in `eslint.config.mjs`.
+- New dependencies must be pinned to an exact version — no `^` or `~` range syntax.  Use `npm install --save-exact` when adding packages.
 
 ### Never
 
-- Do not modify files in `doc/` — they are generated and gitignored.
-- Do not commit `node_modules/` or `doc/`.
+- Do not modify files in `dist/` — they are generated and gitignored.
+- Do not commit `node_modules/` or `dist/`.
 - Do not use `require()` or CommonJS syntax — this is an ESM-only project (`"type": "module"` in `package.json`).
 
 ## Architecture
@@ -53,7 +55,7 @@ Pubst is a slightly opinionated pub/sub library for JavaScript.  ESM module, Apa
 - **`src/store/`** — Pluggable store interface.  `InMemoryStore` is the default and serves as the reference implementation.  Custom stores must implement these async methods: `registerTopic`, `getValue`, `setValue`, `clearValue`, `getTopicNames`.
 - **`src/logger/`** — Pluggable logger interface.  `ConsoleLogger` (default) and `SilentLogger`.  Custom loggers must implement `warn(source, message)`.
 - **`src/util/utils.js`** — Internal utility functions.
-- The constructor does not call `configure()` — consumers must call `await pubst.configure(...)` after construction.
+- The constructor does not call `configure()` — the instance is ready to use immediately with default settings.  Consumers call `await pubst.configure(...)` only if they need to customize the logger, store, or pre-register topics.
 - `subscribe` is the only synchronous public method.  All others (`configure`, `addTopic`, `addTopics`, `publish`, `currentVal`, `clear`, `clearAll`) are async.
 
 ## Testing Patterns

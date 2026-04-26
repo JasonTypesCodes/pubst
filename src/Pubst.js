@@ -82,8 +82,9 @@ class Pubst {
    *
    * @description
    * <p>
-   * Creates a new Pubst instance.  After creation, call `await configure()`
-   * to set up the instance with your desired configuration.
+   * Creates a new Pubst instance.  The instance is ready to use immediately
+   * with default settings.  Call `await configure()` if you need to customize
+   * the logger, store, or pre-register topics.
    * </p>
    *
    * @example
