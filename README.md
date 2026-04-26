@@ -18,14 +18,6 @@ Pubst has a few other features worth noting:
 
   + Pubst supports pluggable store implementations for custom persistence strategies.
 
-## Breaking Changes (v0.6.0)
-
-  + **The constructor no longer accepts configuration or calls `configure()`.**  You must now create a Pubst instance and then call `await configure()` separately.  This allows the async store setup to be properly awaited.
-
-  + **Most methods are now async.**  `configure`, `addTopic`, `addTopics`, `publish`, `currentVal`, `clear`, and `clearAll` now return Promises and can be `await`-ed.
-
-  + **`subscribe` remains synchronous** and continues to return an unsubscribe function immediately.  Priming of subscribers with existing values happens asynchronously in the background.
-
 ## Breaking Changes (v0.7.0)
 
   + **`subscribe` no longer accepts `RegExp` as the first argument.**  Use a matcher function instead.  A matcher function receives a topic name string and should return a truthy value if the subscriber should receive updates for that topic.  If the matcher throws an error, the error is logged as a warning and the match is skipped.
@@ -42,6 +34,14 @@ pubst.subscribe(t => /SELECTED\..*/.test(t), handler);
 // Or, take advantage of more expressive matching logic:
 pubst.subscribe(t => t.startsWith('SELECTED.'), handler);
 ```
+
+## Breaking Changes (v0.6.0)
+
+  + **The constructor no longer accepts configuration or calls `configure()`.**  You must now create a Pubst instance and then call `await configure()` separately.  This allows the async store setup to be properly awaited.
+
+  + **Most methods are now async.**  `configure`, `addTopic`, `addTopics`, `publish`, `currentVal`, `clear`, and `clearAll` now return Promises and can be `await`-ed.
+
+  + **`subscribe` remains synchronous** and continues to return an unsubscribe function immediately.  Priming of subscribers with existing values happens asynchronously in the background.
 
 ## Basic Usage
 
