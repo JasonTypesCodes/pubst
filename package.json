@@ -6,7 +6,7 @@
   "types": "dist/types/Pubst.d.ts",
   "type": "module",
   "scripts": {
-    "clean": "shx rm -rf dist",
+    "clean": "node scripts/clean.js",
     "build-docs": "jsdoc ./src -r -d ./dist/doc",
     "build-browser": "node scripts/build-browser.js",
     "build-types": "tsc",
@@ -46,7 +46,6 @@
     "jsdoc": "4.0.5",
     "mocha": "11.8.0",
     "npm-run-all": "4.1.5",
-    "shx": "0.4.0",
     "sinon": "22.1.0",
     "sinon-chai": "4.0.1",
     "typescript": "7.0.2"
