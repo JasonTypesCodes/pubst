@@ -1,6 +1,6 @@
 {
   "name": "pubst",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "A slightly opinionated pub/sub event emitter for JavaScript.",
   "main": "src/Pubst.js",
   "types": "dist/types/Pubst.d.ts",
