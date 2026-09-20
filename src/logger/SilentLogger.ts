@@ -14,22 +14,22 @@
  *  limitations under the License.
  */
 
+import type { Logger } from '../types.js';
+
 /**
- * @summary A no-op logger that silently discards all warnings.
+ * A no-op logger that silently discards all warnings.
  *
- * @description
- * SilentLogger is used by Pubst when `showWarnings` is set to `false`.
- * It implements the same interface as ConsoleLogger but discards all messages.
+ * Used by Pubst when `showWarnings` is set to `false`.
  */
-class SilentLogger {
+class SilentLogger implements Logger {
 
   /**
-   * @summary Discard a warning message (no-op).
+   * Discard a warning message.
    *
-   * @param {string} source - The source of the warning.
-   * @param {string} message - The warning message.
+   * @param _source - Ignored.
+   * @param _message - Ignored.
    */
-  warn() {}
+  warn(_source: string, _message: string): void {}
 }
 
 export default SilentLogger;

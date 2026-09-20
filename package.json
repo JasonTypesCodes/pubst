@@ -1,19 +1,48 @@
 {
   "name": "pubst",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "A slightly opinionated pub/sub event emitter for JavaScript.",
-  "main": "src/Pubst.js",
-  "types": "dist/types/Pubst.d.ts",
+  "main": "./dist/Pubst.js",
+  "module": "./dist/Pubst.js",
+  "types": "./dist/Pubst.d.ts",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/Pubst.d.ts",
+      "default": "./dist/Pubst.js"
+    },
+    "./store": {
+      "types": "./dist/store/index.d.ts",
+      "default": "./dist/store/index.js"
+    },
+    "./logger": {
+      "types": "./dist/logger/index.d.ts",
+      "default": "./dist/logger/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "!dist/doc",
+    "src",
+    "!src/**/*.test.ts",
+    "!src/**/*.test-d.ts",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "clean": "node scripts/clean.js",
-    "build-docs": "jsdoc ./src -r -d ./dist/doc",
+    "build": "tsc -p tsconfig.build.json",
     "build-browser": "node scripts/build-browser.js",
-    "build-types": "tsc",
-    "lint": "eslint ./src",
-    "prepare": "npm-run-all clean build-docs build-browser build-types",
-    "test": "mocha src/**/*.test.js src/*.test.js",
-    "verify": "npm-run-all lint test"
+    "build-docs": "typedoc",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "mocha",
+    "verify": "npm-run-all lint typecheck test",
+    "prepare": "npm-run-all clean build build-browser build-docs",
+    "prepublishOnly": "npm run verify"
   },
   "repository": {
     "type": "git",
@@ -37,17 +66,22 @@
   },
   "homepage": "https://github.com/JasonTypesCodes/pubst#readme",
   "devDependencies": {
-    "@eslint/eslintrc": "3.3.7",
     "@eslint/js": "10.0.1",
+    "@types/chai": "5.2.3",
+    "@types/mocha": "10.0.10",
+    "@types/sinon": "22.0.0",
+    "@types/sinon-chai": "4.0.0",
     "chai": "6.2.2",
     "esbuild": "0.28.2",
     "eslint": "10.11.0",
     "globals": "17.12.0",
-    "jsdoc": "4.0.5",
     "mocha": "12.0.2",
     "npm-run-all": "4.1.5",
     "sinon": "22.1.0",
     "sinon-chai": "4.0.1",
-    "typescript": "7.0.2"
+    "tsx": "4.23.14",
+    "typedoc": "0.28.20",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.0"
   }
 }

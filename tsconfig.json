@@ -1,15 +1,33 @@
 {
   "compilerOptions": {
-    "declaration": true,
-    "emitDeclarationOnly": true,
-    "allowJs": true,
-    "checkJs": false,
-    "outDir": "./dist/types",
-    "rootDir": "./src",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "target": "ES2022"
+    "target": "ES2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+
+    // DOM supplies setTimeout, console and window -- the entire ambient
+    // surface this library touches.  @types/node is deliberately absent:
+    // it would type setTimeout's return as NodeJS.Timeout, which is wrong
+    // for a library that also runs in the browser.
+    "lib": ["ES2022", "DOM"],
+    "types": ["mocha"],
+
+    "rootDir": "src",
+    "noEmit": true,
+
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "erasableSyntaxOnly": true,
+
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*.js"],
-  "exclude": ["src/**/*.test.js", "src/browser.js"]
+  "include": ["src/**/*.ts"]
 }

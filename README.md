@@ -18,6 +18,23 @@ Pubst has a few other features worth noting:
 
   + Pubst supports pluggable store implementations for custom persistence strategies.
 
+## Breaking Changes (v0.8.0)
+
+  + **Pubst is now written in TypeScript** and publishes compiled ESM from `dist/`.  If you imported internal paths directly (e.g. `pubst/src/store/InMemoryStore.js`), use the new subpath exports instead:
+
+```js
+// Before (v0.7.0)
+import InMemoryStore from 'pubst/src/store/InMemoryStore.js';
+
+// After (v0.8.0)
+import { InMemoryStore } from 'pubst/store';
+import { ConsoleLogger, SilentLogger } from 'pubst/logger';
+```
+
+  + **`clear()` and `clearAll()` now call your store's `clearValue` method** instead of routing through `setValue(topic, null)`.  Subscribers still receive `null`.  This only affects custom stores whose `clearValue` is not equivalent to `setValue(topic, null)` — `clearValue` was always part of the documented contract, but Pubst never actually called it before now.
+  + **`subscribe` throws on an invalid handler.**  Passing anything other than a function or a subscription configuration object now throws a descriptive error instead of failing later with an opaque `TypeError`.
+  + **`eventOnly` now works as a per-subscription option.**  It was documented but silently discarded before reaching the subscriber.  If you were passing `eventOnly` to `subscribe` and relying on it being ignored, your handler will now receive the topic name instead of the payload.
+
 ## Breaking Changes (v0.7.0)
 
   + **`subscribe` no longer accepts `RegExp` as the first argument.**  Use a matcher function instead.  A matcher function receives a topic name string and should return a truthy value if the subscriber should receive updates for that topic.  If the matcher throws an error, the error is logged as a warning and the match is skipped.
@@ -120,7 +137,7 @@ A subscriber is free to override the default value for their topics.
 Browser-ready bundles are included in the `dist/browser/` directory of the npm package.  Include the script via a `<script>` tag and `window.pubst` will be available as a pre-instantiated Pubst instance.
 
 ```html
-<script src="pubst-browser-0.7.0.min.js"></script>
+<script src="pubst-browser-0.8.0.min.js"></script>
 <script>
   (async () => {
     await pubst.configure({showWarnings: false});
@@ -140,7 +157,9 @@ Both unminified (`pubst-browser-{version}.js`) and minified (`pubst-browser-{ver
 
 ## TypeScript
 
-TypeScript type declarations are generated from JSDoc and included in the package.  They are picked up automatically when importing Pubst:
+Pubst is written in TypeScript.  The published package ships compiled ESM alongside
+declarations and source maps generated from the real implementation, so types are
+picked up automatically:
 
 ```ts
 import Pubst from 'pubst';
@@ -151,6 +170,48 @@ await pubst.configure({ showWarnings: false });
 pubst.subscribe('my.topic', (value: unknown, topic: string) => {
   console.log(topic, value);
 });
+```
+
+Topic values are `unknown` by default.  When you know what a topic carries, pass a
+type argument and the handler is narrowed for you:
+
+```ts
+interface User { id: string; name: string }
+
+await pubst.addTopic({ name: 'user.current' });
+
+pubst.subscribe<User>('user.current', user => {
+  console.log(user.name); // `user` is User, no cast needed
+});
+
+await pubst.publish<User>('user.current', { id: '1', name: 'Jill' });
+
+const current: User | undefined = await pubst.currentVal<User>('user.current');
+```
+
+### Exported types
+
+Every contract is exported from the package root:
+
+```ts
+import type {
+  Store,              // the store contract
+  Logger,             // the logger contract
+  Handler,            // (value, topic) => void
+  TopicMatcher,       // (topic) => truthy to subscribe
+  Unsubscribe,        // () => void, returned by subscribe
+  RegisteredTopic,    // what a store's registerTopic resolves with
+  PubstConfig,
+  TopicConfig,
+  SubscriptionConfig,
+} from 'pubst';
+```
+
+The built-in implementations are available from subpath exports:
+
+```ts
+import { InMemoryStore } from 'pubst/store';
+import { ConsoleLogger, SilentLogger } from 'pubst/logger';
 ```
 
 ## API
@@ -367,16 +428,55 @@ await pubst.clearAll();
 
 Pubst uses an in-memory store by default, but you can provide your own store implementation for custom persistence strategies (e.g. localStorage, IndexedDB, a remote API, etc.).
 
-A custom store must implement the following async methods:
+A custom store must satisfy the exported `Store` interface.  In TypeScript, declare
+`implements Store` and the compiler will hold you to it:
+
+```ts
+import type { RegisteredTopic, Store } from 'pubst';
+
+class LocalStorageStore implements Store {
+  async registerTopic(
+    topicName: string,
+    initialVal: unknown = null,
+    storeConfig: Record<string, unknown> = {},
+  ): Promise<RegisteredTopic> {
+    localStorage.setItem(topicName, JSON.stringify(initialVal));
+    return { topicName, initialVal, storeConfig };
+  }
+
+  async getValue(topicName: string): Promise<unknown> {
+    const raw = localStorage.getItem(topicName);
+    return raw === null ? undefined : JSON.parse(raw);
+  }
+
+  async setValue(topicName: string, value: unknown = null): Promise<unknown> {
+    localStorage.setItem(topicName, JSON.stringify(value));
+    return value;
+  }
+
+  async clearValue(topicName: string): Promise<null> {
+    localStorage.setItem(topicName, JSON.stringify(null));
+    return null;
+  }
+
+  async getTopicNames(): Promise<string[]> {
+    return Object.keys(localStorage);
+  }
+}
+```
+
+The contract is structural, so a plain duck-typed object works just as well and
+JavaScript consumers need no changes.  For reference, the methods are:
 
 | Method                                              | Description                                    |
 |-----------------------------------------------------|------------------------------------------------|
 | `registerTopic(topicName, initialVal, storeConfig)` | Called when a topic is configured via `addTopic`.  `initialVal` is `null` for new topics.  `storeConfig` is the topic-level store configuration passed through from the topic's `storeConfig` option. |
 | `getValue(topicName)`                               | Retrieve the current value for a topic.        |
 | `setValue(topicName, value)`                        | Store a new value for a topic.                 |
-| `clearValue(topicName)`                             | Clear the value for a topic (set to null).     |
+| `clearValue(topicName)`                             | Clear the value for a topic.  Called by `clear()` and `clearAll()`. |
 | `getTopicNames()`                                   | Return an array of all registered topic names. |
 
 All methods must return a Promise (or be declared `async`).
 
-The built-in `InMemoryStore` class serves as the reference implementation.
+The built-in `InMemoryStore` class serves as the reference implementation, and is
+importable from `pubst/store`.

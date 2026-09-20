@@ -1,0 +1,6 @@
+{
+  "spec": ["src/**/*.test.ts"],
+  "extension": ["ts"],
+  "node-option": ["import=tsx"],
+  "recursive": true
+}

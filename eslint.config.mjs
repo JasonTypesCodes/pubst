@@ -1,29 +1,46 @@
-import { defineConfig } from "eslint/config";
-import globals from "globals";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import js from "@eslint/js";
-import { FlatCompat } from "@eslint/eslintrc";
+import globals from "globals";
+import tseslint from "typescript-eslint";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const compat = new FlatCompat({
-    baseDirectory: __dirname,
-    recommendedConfig: js.configs.recommended,
-    allConfig: js.configs.all
-});
-
-
-export default defineConfig([{
-    extends: compat.extends("eslint:recommended"),
-
+export default tseslint.config(
+  {
+    ignores: ["dist/**"],
+  },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
+  {
     languageOptions: {
-        globals: {
-            ...globals.node,
-            ...globals.browser,
-            ...globals.mocha,
-        },
-        ecmaVersion: 2022,
-        sourceType: "module",
+      globals: {
+        ...globals.node,
+        ...globals.mocha,
+      },
+      ecmaVersion: 2022,
+      sourceType: "module",
     },
-}]);
+  },
+  {
+    rules: {
+      // Match the TypeScript compiler: a leading underscore means
+      // "declared to document the contract, deliberately unused".
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrors: "all" },
+      ],
+    },
+  },
+  {
+    // Chai's `expect(x).to.be.true` assertions read as unused expressions.
+    files: ["src/**/*.test.ts", "src/**/*.test-d.ts"],
+    rules: {
+      "@typescript-eslint/no-unused-expressions": "off",
+    },
+  },
+  {
+    files: ["src/browser.ts"],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+      },
+    },
+  },
+);

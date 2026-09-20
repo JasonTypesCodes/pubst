@@ -16,6 +16,7 @@
 
 import * as chai from 'chai';
 import Pubst from './Pubst.js';
+import type { Logger, Store, TopicConfig } from './Pubst.js';
 import sinonChai from 'sinon-chai';
 import sinon from 'sinon';
 chai.use(sinonChai);
@@ -30,11 +31,11 @@ const expect = chai.expect;
 const flushPromises = () => Promise.resolve().then(() => Promise.resolve()).then(() => Promise.resolve()).then(() => Promise.resolve());
 
 describe('Pubst', () => {
-  let pubst;
+  let pubst: Pubst;
   const TEST_TOPIC_1 = 'test.topic.one';
   const TEST_TOPIC_2 = 'test.topic.two';
 
-  let clock;
+  let clock: sinon.SinonFakeTimers;
 
   beforeEach(async () => {
     clock = sinon.useFakeTimers();
@@ -46,8 +47,37 @@ describe('Pubst', () => {
     clock.restore();
   });
 
+  type StubStore = {
+    [K in keyof Store]: sinon.SinonSpy<Parameters<Store[K]>, ReturnType<Store[K]>>;
+  } & { _store: Record<string, unknown> };
+
+  function createStubStore(): StubStore {
+    const store: Record<string, unknown> = {};
+    return {
+      registerTopic: sinon.spy(async (topicName, initialVal = null, storeConfig = {}) => {
+        store[topicName] = initialVal;
+        return {topicName, initialVal, storeConfig};
+      }),
+      getValue: sinon.spy(async (topicName) => {
+        return store[topicName];
+      }),
+      setValue: sinon.spy(async (topicName, value = null) => {
+        store[topicName] = value;
+        return value;
+      }),
+      clearValue: sinon.spy(async (topicName) => {
+        store[topicName] = null;
+        return null;
+      }),
+      getTopicNames: sinon.spy(async () => {
+        return Object.keys(store);
+      }),
+      _store: store
+    };
+  }
+
   describe('showWarnings', () => {
-    let warnSpy;
+    let warnSpy: sinon.SinonSpy | null;
 
     afterEach(() => {
       if (warnSpy) {
@@ -81,7 +111,7 @@ describe('Pubst', () => {
 
     it('uses explicit logger over showWarnings', async () => {
       warnSpy = sinon.spy(console, 'warn');
-      const customLogger = { warn: sinon.spy() };
+      const customLogger: Logger & { warn: sinon.SinonSpy } = { warn: sinon.spy() };
       const p = new Pubst();
       await p.configure({logger: customLogger, showWarnings: false});
 
@@ -107,31 +137,6 @@ describe('Pubst', () => {
   });
 
   describe('custom store', () => {
-    function createStubStore() {
-      const store = {};
-      return {
-        registerTopic: sinon.spy(async (topicName, initialVal = null, storeConfig = {}) => {
-          store[topicName] = initialVal;
-          return {topicName, initialVal, storeConfig};
-        }),
-        getValue: sinon.spy(async (topicName) => {
-          return store[topicName];
-        }),
-        setValue: sinon.spy(async (topicName, value = null) => {
-          store[topicName] = value;
-          return value;
-        }),
-        clearValue: sinon.spy(async (topicName) => {
-          store[topicName] = null;
-          return null;
-        }),
-        getTopicNames: sinon.spy(async () => {
-          return Object.keys(store);
-        }),
-        _store: store
-      };
-    }
-
     it('uses a custom store when provided via configure', async () => {
       const customStore = createStubStore();
       const p = new Pubst();
@@ -188,7 +193,7 @@ describe('Pubst', () => {
       expect(customStore.setValue).to.have.been.calledWith('my.topic', 'payload');
     });
 
-    it('calls getTopicNames and publishes null when clearAll is called', async () => {
+    it('calls getTopicNames and clears each value when clearAll is called', async () => {
       const customStore = createStubStore();
       const p = new Pubst();
       await p.configure({showWarnings: false, store: customStore});
@@ -198,13 +203,16 @@ describe('Pubst', () => {
 
       customStore.getTopicNames.resetHistory();
       customStore.setValue.resetHistory();
+      customStore.clearValue.resetHistory();
 
       await p.clearAll();
 
       expect(customStore.getTopicNames).to.have.been.called;
-      // clearAll calls clear for each topic, which calls publish(topic, null)
-      expect(customStore.setValue).to.have.been.calledWith('topic.one', null);
-      expect(customStore.setValue).to.have.been.calledWith('topic.two', null);
+      // clearAll calls clear for each topic, which goes through the store's
+      // clearValue method rather than setValue.
+      expect(customStore.clearValue).to.have.been.calledWith('topic.one');
+      expect(customStore.clearValue).to.have.been.calledWith('topic.two');
+      expect(customStore.setValue).not.to.have.been.called;
     });
 
     it('registers topics passed via configure', async () => {
@@ -318,9 +326,9 @@ describe('Pubst', () => {
         let errorThrown = false;
 
         try {
-          await pubst.addTopic({});
-        // eslint-disable-next-line no-unused-vars
-        } catch (e) {
+          // The type system rejects this; the cast keeps the runtime guard covered.
+          await pubst.addTopic({} as TopicConfig);
+        } catch {
           errorThrown = true;
         }
 
@@ -448,6 +456,35 @@ describe('Pubst', () => {
     });
 
     describe('eventOnly', () => {
+      it('can be set per-subscription via the object form of subscribe', async () => {
+        const handler = sinon.spy();
+
+        await pubst.addTopic({name: TEST_TOPIC_1});
+
+        pubst.subscribe(TEST_TOPIC_1, {handler, eventOnly: true});
+
+        await pubst.publish(TEST_TOPIC_1, 'ignored payload');
+
+        clock.tick(1);
+
+        // An event-only subscriber receives the topic name, not the payload.
+        expect(handler).to.have.been.calledWith(TEST_TOPIC_1, TEST_TOPIC_1);
+      });
+
+      it('lets a subscription opt out of a topic-level eventOnly', async () => {
+        const handler = sinon.spy();
+
+        await pubst.addTopic({name: TEST_TOPIC_1, eventOnly: true, doPrime: false});
+
+        pubst.subscribe(TEST_TOPIC_1, {handler, eventOnly: false});
+
+        await pubst.publish(TEST_TOPIC_1, 'a payload');
+
+        clock.tick(1);
+
+        expect(handler).to.have.been.calledWith('a payload', TEST_TOPIC_1);
+      });
+
       it('creates topics that do not publish a payload', async () => {
         const handler = sinon.spy();
 
@@ -1260,7 +1297,7 @@ describe('Pubst', () => {
 
       it('logs a warning and skips the match when the matcher throws', async () => {
         const handler = sinon.spy();
-        const customLogger = { warn: sinon.spy() };
+        const customLogger: Logger & { warn: sinon.SinonSpy } = { warn: sinon.spy() };
 
         const p = new Pubst();
         await p.configure({logger: customLogger});
@@ -1324,7 +1361,59 @@ describe('Pubst', () => {
 
   });
 
+  describe('invalid subscribers', () => {
+    const badHandlers = [
+      ['a string', 'not a handler'],
+      ['a number', 42],
+      ['null', null],
+      ['undefined', undefined],
+      ['a boolean', true],
+    ] as const;
+
+    badHandlers.forEach(([label, badHandler]) => {
+      it(`throws a clear error when the handler is ${label}`, async () => {
+        await pubst.addTopic({name: TEST_TOPIC_1});
+
+        expect(
+          // Typed callers cannot get here; JavaScript callers can.
+          () => pubst.subscribe(TEST_TOPIC_1, badHandler as unknown as () => void)
+        ).to.throw(/Handler must be a function or a subscription configuration object/);
+      });
+    });
+  });
+
   describe('clear', () => {
+    it('clears a topic through the store clearValue method', async () => {
+      const customStore = createStubStore();
+      const p = new Pubst();
+      await p.configure({showWarnings: false, store: customStore});
+
+      await p.publish(TEST_TOPIC_1, 'a value');
+      customStore.setValue.resetHistory();
+      customStore.clearValue.resetHistory();
+
+      await p.clear(TEST_TOPIC_1);
+
+      expect(customStore.clearValue).to.have.been.calledWith(TEST_TOPIC_1);
+      expect(customStore.setValue).not.to.have.been.called;
+    });
+
+    it('notifies subscribers when a topic is cleared', async () => {
+      const handler = sinon.spy();
+
+      await pubst.addTopic({name: TEST_TOPIC_1});
+      pubst.subscribe(TEST_TOPIC_1, handler);
+
+      await pubst.publish(TEST_TOPIC_1, 'a value');
+      clock.tick(1);
+      handler.resetHistory();
+
+      await pubst.clear(TEST_TOPIC_1);
+      clock.tick(1);
+
+      expect(handler).to.have.been.calledWith(null, TEST_TOPIC_1);
+    });
+
     it('clears a topic', async () => {
       const testValue = 'some value';
       const testDefault = 'some default';

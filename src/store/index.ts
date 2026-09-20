@@ -15,24 +15,10 @@
  */
 
 /**
- * @summary Default logger that writes warnings to the console.
+ * Store implementations and the {@link Store} contract.
  *
- * @description
- * This is the default logger used by Pubst.  It formats warning messages
- * and writes them to the console via `console.warn`.
+ * @module store
  */
-class ConsoleLogger {
 
-  /**
-   * @summary Log a warning message to the console.
-   *
-   * @param {string} source - The source of the warning (e.g. `'Pubst.publish'`).
-   * @param {string} message - The warning message.
-   */
-  warn(source, message) {
-    console.warn(`WARNING | ${source} : ${message}`);
-  }
-
-}
-
-export default ConsoleLogger;
+export { default as InMemoryStore } from './InMemoryStore.js';
+export type { RegisteredTopic, Store } from '../types.js';

@@ -22,12 +22,17 @@ chai.use(sinonChai);
 
 const expect = chai.expect;
 
+// Several cases below call these helpers with no arguments at all.  That is
+// a real scenario for JavaScript consumers, but TypeScript will not let a
+// typed call site omit a required parameter, so it goes through this alias.
+const loose = utils as unknown as Record<string, (...args: unknown[]) => unknown>;
+
 describe('Pubst Utils', () =>{
 
   describe('isUndefined', () => {
 
     it('true when undefined', () => {
-      expect(utils.isUndefined()).to.be.true;
+      expect(loose.isUndefined!()).to.be.true;
       expect(utils.isUndefined(undefined)).to.be.true;
     });
 
@@ -44,7 +49,7 @@ describe('Pubst Utils', () =>{
   describe('isDefined', () => {
 
     it('false when not defined', () => {
-      expect(utils.isDefined()).to.be.false;
+      expect(loose.isDefined!()).to.be.false;
       expect(utils.isDefined(undefined)).to.be.false;
     });
 
@@ -70,7 +75,7 @@ describe('Pubst Utils', () =>{
 
     it('false when null or undefined', () => {
       expect(utils.isSet(null)).to.be.false;
-      expect(utils.isSet()).to.be.false;
+      expect(loose.isSet!()).to.be.false;
       expect(utils.isSet(undefined)).to.be.false;
     });
   });
@@ -87,8 +92,24 @@ describe('Pubst Utils', () =>{
 
     it('true when null or undefined', () => {
       expect(utils.isNotSet(null)).to.be.true;
-      expect(utils.isNotSet()).to.be.true;
+      expect(loose.isNotSet!()).to.be.true;
       expect(utils.isNotSet(undefined)).to.be.true;
+    });
+  });
+
+  describe('hasOwnProperty', () => {
+    // Destructured so the calls below are not member expressions, which
+    // `no-prototype-builtins` would flag despite this being our own helper.
+    const { hasOwnProperty } = utils;
+
+    it('true for own properties', () => {
+      expect(hasOwnProperty({a: 1}, 'a')).to.be.true;
+      expect(hasOwnProperty({a: undefined}, 'a')).to.be.true;
+    });
+
+    it('false for absent and inherited properties', () => {
+      expect(hasOwnProperty({a: 1}, 'b')).to.be.false;
+      expect(hasOwnProperty({}, 'toString')).to.be.false;
     });
   });
 
@@ -108,14 +129,15 @@ describe('Pubst Utils', () =>{
     it('returns the default is undefined', () => {
       expect(utils.valueOrDefault(undefined, testDef)).to.equal(testDef);
 
-      // eslint-disable-next-line
-      let a;
+      // Deliberately never assigned; that is what this case covers.
+      // eslint-disable-next-line no-unassigned-vars
+      let a: string | undefined;
 
       expect(utils.valueOrDefault(a, testDef)).to.equal(testDef);
     });
 
     it('returns null if the default is undefined and the value is null', () => {
-      expect(utils.valueOrDefault(null)).to.be.null;
+      expect(loose.valueOrDefault!(null)).to.be.null;
     });
 
   });

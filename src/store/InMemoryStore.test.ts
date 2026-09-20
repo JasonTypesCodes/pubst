@@ -20,7 +20,7 @@ import InMemoryStore from './InMemoryStore.js';
 const expect = chai.expect;
 
 describe('InMemoryStore', () => {
-  let store;
+  let store: InMemoryStore;
 
   beforeEach(() => {
     store = new InMemoryStore();

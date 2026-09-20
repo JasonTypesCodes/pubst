@@ -19,12 +19,20 @@ import { readFileSync } from 'node:fs';
 
 const { version } = JSON.parse(readFileSync('./package.json', 'utf8'));
 
+const licenseBanner = `/*
+ * Pubst - A slightly opinionated pub/sub library for JavaScript.
+ * Copyright 2017-2026 Jason Schindler
+ * Licensed under the Apache License, Version 2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
+ */`;
+
 const common = {
-  entryPoints: ['src/browser.js'],
+  entryPoints: ['src/browser.ts'],
   bundle: true,
   format: 'iife',
   target: ['es2022'],
   sourcemap: true,
+  banner: { js: licenseBanner },
 };
 
 await esbuild.build({

@@ -15,18 +15,22 @@
  */
 
 /**
- * @summary Browser entry point for Pubst.
+ * Browser entry point for Pubst.
  *
- * @description
- * This file is the entry point for the browser IIFE bundle.
- * It creates a new Pubst instance and attaches it to the
- * global `window` object as `window.pubst`.
+ * This is the entry point for the IIFE bundle.  It creates a Pubst instance
+ * and attaches it to the global `window` object as `window.pubst`.
  *
- * Consumers may call `await pubst.configure(...)` to customize
- * the instance before use.  If no configuration changes are needed,
- * the instance is ready to use immediately.
+ * Consumers may call `await pubst.configure(...)` to customize the instance
+ * before use.  If no configuration changes are needed, the instance is ready
+ * to use immediately.
  */
 
 import Pubst from './Pubst.js';
+
+declare global {
+  interface Window {
+    pubst: Pubst;
+  }
+}
 
 window.pubst = new Pubst();

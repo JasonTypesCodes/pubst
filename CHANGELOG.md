@@ -1,3 +1,29 @@
+## v0.8.0 - Sep 20 2026
+
+### Breaking Changes
+
+  + **Pubst is now written in TypeScript.**  The published package ships compiled ESM from `dist/` instead of raw source from `src/`.  Declarations and source maps are generated from the implementation rather than reverse-engineered from JSDoc.
+  + **`exports` map added.**  The package now exposes `pubst`, `pubst/store` and `pubst/logger`.  Deep imports of internal paths such as `pubst/src/store/InMemoryStore.js` no longer resolve.
+  + **`clear()` and `clearAll()` now call the store's `clearValue` method.**  They previously routed through `publish(topic, null)`, which called `setValue(topic, null)`.  Subscribers still receive `null`, so this is only a breaking change for custom stores whose `clearValue` does something other than `setValue(topic, null)`.  `clearValue` was always part of the documented store contract but was never actually invoked.
+  + **`subscribe` now throws on an invalid handler.**  Passing something that is neither a function nor a subscription configuration object previously produced an opaque `TypeError` from deep inside Pubst; it now throws `Unable to subscribe.  Handler must be a function or a subscription configuration object.`
+
+### New Features
+
+  + **`Store` and `Logger` are exported TypeScript interfaces.**  Custom implementations can declare `implements Store` / `implements Logger` and be checked by the compiler.  Both contracts remain structural, so existing duck-typed implementations keep working unchanged.
+  + **Typed callbacks and generic escape hatches.**  `Handler`, `TopicMatcher` and `Unsubscribe` are now distinct exported types instead of a bare `Function`.  `publish<T>`, `subscribe<T>` and `currentVal<T>` accept an optional type argument so callers can narrow a topic's value type.
+  + **`eventOnly` is now honored per-subscription.**  The object form of `subscribe` accepted an `eventOnly` option in the documentation, but it was filtered out before reaching the subscriber and could never take effect.
+  + **Subpath exports** for the built-in implementations: `import { InMemoryStore } from 'pubst/store'` and `import { ConsoleLogger, SilentLogger } from 'pubst/logger'`.
+  + **`publish(topic)` may omit the payload**, which is the natural way to publish to an event-only topic.
+
+### Other Changes
+
+  + API documentation is now generated with TypeDoc instead of jsdoc.
+  + Browser bundles now carry the Apache 2.0 license header, which esbuild had been silently stripping.
+  + `InMemoryStore` and Pubst's internal topic and subscriber registries use `Map` instead of plain objects, removing a collision hazard with `Object.prototype` keys.
+  + Tests are TypeScript and run through `tsx`; `npm run verify` now also type-checks.
+  + The published tarball is controlled by an explicit `files` allowlist rather than `.npmignore`.
+  + `typescript` is pinned to 6.0.3; TypeScript 7 ships no JS compiler API, which `typescript-eslint` and `typedoc` still require.
+
 ## v0.7.0 - Apr 26 2026
 
 ### Breaking Changes

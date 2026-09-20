@@ -1,0 +1,11 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "Pubst",
+  "entryPoints": ["src/Pubst.ts", "src/store/index.ts", "src/logger/index.ts"],
+  "tsconfig": "./tsconfig.build.json",
+  "out": "dist/doc",
+  "readme": "README.md",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "includeVersion": true
+}

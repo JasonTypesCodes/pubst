@@ -10,6 +10,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # `npm ci` runs the `prepare` script, so the full build (compile,
+      # browser bundle, docs) is already exercised here.
       - run: npm ci
       - run: npm run verify
-      - run: npm run prepare
