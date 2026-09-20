@@ -5,11 +5,18 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both ends of the range `engines` claims: the 22.x floor and
+        # current LTS.  Drop 22 when it goes EOL (2027-04-30).
+        node-version: [22, 24]
+    name: verify (node ${{ matrix.node-version }})
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node-version }}
       # `npm ci` runs the `prepare` script, so the full build (compile,
       # browser bundle, docs) is already exercised here.
       - run: npm ci
