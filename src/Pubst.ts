@@ -278,13 +278,16 @@ class Pubst {
     const value = eventOnly ? topic : valueOrDefault(payload, defVal);
 
     if (eventOnly || allowRepeats || sub.lastVal !== value || sub.lastTopic !== topic) {
+      // Recorded at schedule time rather than when the call runs, so that a
+      // repeat published before the timer fires is still suppressed.
+      sub.lastVal = value;
+      sub.lastTopic = topic;
+
       setTimeout(() => {
         if (!sub.active) {
           return;
         }
         sub.handler(value, topic);
-        sub.lastVal = value;
-        sub.lastTopic = topic;
       }, 0);
     }
   }

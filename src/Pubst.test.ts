@@ -1077,6 +1077,64 @@ describe('Pubst', () => {
       });
     });
 
+    it('suppresses a repeat published before the first call is made', async () => {
+      const handler = sinon.spy();
+
+      pubst.subscribe(TEST_TOPIC_1, handler);
+
+      await pubst.publish(TEST_TOPIC_1, 'same payload');
+      await pubst.publish(TEST_TOPIC_1, 'same payload');
+
+      clock.tick(1);
+
+      expect(handler).to.have.been.calledOnceWith('same payload', TEST_TOPIC_1);
+    });
+
+    it('delivers every change, in order, when values alternate before the calls are made', async () => {
+      const handler = sinon.spy();
+
+      pubst.subscribe(TEST_TOPIC_1, handler);
+
+      await pubst.publish(TEST_TOPIC_1, true);
+      await pubst.publish(TEST_TOPIC_1, false);
+      await pubst.publish(TEST_TOPIC_1, true);
+
+      clock.tick(1);
+
+      expect(handler.args).to.deep.equal([
+        [true, TEST_TOPIC_1],
+        [false, TEST_TOPIC_1],
+        [true, TEST_TOPIC_1],
+      ]);
+    });
+
+    it('suppresses a publish matching a prime that has not been delivered yet', async () => {
+      const handler = sinon.spy();
+
+      await pubst.publish(TEST_TOPIC_1, 'current payload');
+
+      pubst.subscribe(TEST_TOPIC_1, handler);
+
+      await flushPromises();
+      await pubst.publish(TEST_TOPIC_1, 'current payload');
+      clock.tick(1);
+
+      expect(handler).to.have.been.calledOnceWith('current payload', TEST_TOPIC_1);
+    });
+
+    it('delivers a repeat published before the first call is made when allowRepeats is set', async () => {
+      const handler = sinon.spy();
+
+      pubst.subscribe(TEST_TOPIC_1, {handler, allowRepeats: true});
+
+      await pubst.publish(TEST_TOPIC_1, 'same payload');
+      await pubst.publish(TEST_TOPIC_1, 'same payload');
+
+      clock.tick(1);
+
+      expect(handler).to.have.been.calledTwice;
+    });
+
     describe('function matcher subscribers', () => {
 
       it('allows a subscriber to use a matcher function for a topic', async () => {
@@ -1236,6 +1294,21 @@ describe('Pubst', () => {
         clock.tick(1);
 
         expect(anythingHandler).not.to.have.been.called;
+      });
+
+      it('delivers the same value on different topics before the calls are made', async () => {
+        const anythingHandler = sinon.spy();
+
+        pubst.subscribe(() => true, anythingHandler);
+
+        await pubst.publish(TEST_TOPIC_1, 'same payload');
+        await pubst.publish(TEST_TOPIC_2, 'same payload');
+
+        clock.tick(1);
+
+        expect(anythingHandler).to.have.callCount(2);
+        expect(anythingHandler).to.have.been.calledWith('same payload', TEST_TOPIC_1);
+        expect(anythingHandler).to.have.been.calledWith('same payload', TEST_TOPIC_2);
       });
 
       it('receive the same default for all topics', async () => {

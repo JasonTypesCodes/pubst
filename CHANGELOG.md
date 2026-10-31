@@ -3,6 +3,7 @@
 ### Bug Fixes
 
   + **Unsubscribing now cancels pending deliveries.**  Handlers are called via `setTimeout(0)`, and a delivery scheduled before `unsubscribe()` was called would previously still reach the handler.  This applied to both publishes and the initial prime.  Once the unsubscribe function returns, the handler is never called again.
+  + **Repeat suppression now covers values published in quick succession.**  A subscriber's last value was only recorded once its handler had actually run, so publishing the same value twice before the first `setTimeout(0)` fired delivered it twice.  The same happened when a publish matched a prime that had not yet been delivered.  The last value is now recorded when the call is scheduled.  Alternating values (`true`, `false`, `true`) are still all delivered, in order.
 
 ## v0.8.0 - Sep 20 2026
 
