@@ -1002,6 +1002,37 @@ describe('Pubst', () => {
       expect(handler2).not.to.have.been.called;
     });
 
+    it('does not deliver a scheduled publish after unsubscribing', async () => {
+      const handler1 = sinon.spy();
+      const handler2 = sinon.spy();
+
+      const unsub1 = pubst.subscribe(TEST_TOPIC_1, handler1);
+      pubst.subscribe(TEST_TOPIC_1, handler2);
+
+      await pubst.publish(TEST_TOPIC_1, 'pending payload');
+
+      unsub1();
+
+      clock.tick(1);
+
+      expect(handler1).not.to.have.been.called;
+      expect(handler2).to.have.been.calledWith('pending payload', TEST_TOPIC_1);
+    });
+
+    it('does not deliver a pending prime after unsubscribing', async () => {
+      const handler = sinon.spy();
+
+      await pubst.publish(TEST_TOPIC_1, 'current payload');
+
+      const unsub = pubst.subscribe(TEST_TOPIC_1, handler);
+
+      await flushPromises();
+      unsub();
+      clock.tick(1);
+
+      expect(handler).not.to.have.been.called;
+    });
+
     it('sends null if no default was provided and a null was published', async () => {
       const originalPayload = 'the original payload';
       const handler = sinon.spy();
@@ -1187,6 +1218,20 @@ describe('Pubst', () => {
         unsub();
 
         await pubst.publish(otherTopic, testPayload);
+
+        clock.tick(1);
+
+        expect(anythingHandler).not.to.have.been.called;
+      });
+
+      it('does not deliver a scheduled publish after unsubscribing', async () => {
+        const anythingHandler = sinon.spy();
+
+        const unsub = pubst.subscribe(() => true, anythingHandler);
+
+        await pubst.publish(TEST_TOPIC_1, 'pending payload');
+
+        unsub();
 
         clock.tick(1);
 

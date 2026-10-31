@@ -1,3 +1,9 @@
+## v0.9.0 - Unreleased
+
+### Bug Fixes
+
+  + **Unsubscribing now cancels pending deliveries.**  Handlers are called via `setTimeout(0)`, and a delivery scheduled before `unsubscribe()` was called would previously still reach the handler.  This applied to both publishes and the initial prime.  Once the unsubscribe function returns, the handler is never called again.
+
 ## v0.8.0 - Sep 20 2026
 
 ### Breaking Changes

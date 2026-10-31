@@ -57,12 +57,17 @@ const DEFAULT_TOPIC_CONFIG: Required<TopicConfig> = {
 
 /**
  * A live subscription.  This is {@link SubscriptionConfig} with the topic
- * resolved and the repeat-suppression bookkeeping that `#scheduleCall`
- * maintains.  Deliberately not part of the public type surface.
+ * resolved and the bookkeeping that `#scheduleCall` maintains.  Deliberately
+ * not part of the public type surface.
  */
 interface Subscription {
   topic: string | TopicMatcher;
   handler: Handler<unknown>;
+  /**
+   * Cleared on unsubscribe, so that calls already scheduled with
+   * `setTimeout` are dropped instead of reaching the handler.
+   */
+  active: boolean;
   default?: unknown;
   eventOnly?: boolean | undefined;
   doPrime?: boolean | undefined;
@@ -244,6 +249,8 @@ class Pubst {
   }
 
   #removeSub(subscriber: Subscription): void {
+    subscriber.active = false;
+
     if (typeof subscriber.topic === 'string') {
       this.#stringSubs.set(
         subscriber.topic,
@@ -272,6 +279,9 @@ class Pubst {
 
     if (eventOnly || allowRepeats || sub.lastVal !== value || sub.lastTopic !== topic) {
       setTimeout(() => {
+        if (!sub.active) {
+          return;
+        }
         sub.handler(value, topic);
         sub.lastVal = value;
         sub.lastTopic = topic;
@@ -368,7 +378,7 @@ class Pubst {
     let subscription: Subscription;
 
     if (typeof handler === 'function') {
-      subscription = {topic, default: def, handler: handler as Handler<unknown>};
+      subscription = {topic, default: def, handler: handler as Handler<unknown>, active: true};
     } else if (handler !== null && typeof handler === 'object') {
       // Built explicitly rather than by copying an allow-list of keys, so
       // that the set of honored options cannot drift away from the type.
@@ -379,6 +389,7 @@ class Pubst {
         doPrime: handler.doPrime,
         allowRepeats: handler.allowRepeats,
         eventOnly: handler.eventOnly,
+        active: true,
       };
     } else {
       throw new Error('Unable to subscribe.  Handler must be a function or a subscription configuration object.');

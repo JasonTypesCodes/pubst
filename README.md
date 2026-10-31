@@ -335,6 +335,8 @@ It will be passed the new value of the topic as the first argument, and the name
 
 **Note:** Priming of subscribers with existing store values happens asynchronously.  The handler will be called after the store read resolves.
 
+Calling the returned unsubscribe function stops all further calls to the handler, including any that were already scheduled but had not yet run.
+
 #### Example 1 - Basic usage
 
 ```js
